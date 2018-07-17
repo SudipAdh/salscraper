@@ -6,9 +6,11 @@
 import re
 import saltools
 
+from time import sleep
 from pyunet import unit_test
 from enum import Enum
 
+saltools.set_logger(saltools.Logger('EXCEPTION', True))
 
 #-------------------------------------------------------------
 #   Testing code
@@ -51,11 +53,6 @@ class MaxMissingAction(Enum):
     IGNORE      = 0
     EXCEPTION   = 1
     EXIT        = 2
-
-#An adapter to pick the first element
-@saltools.handle_exception(level= saltools.Level.ERROR, fall_back_value='')
-def adapter_first_index(x):
-    return x[0]
 
 class Parser():
     '''
@@ -107,6 +104,7 @@ class Parser():
         #Extract Regex
         elif self.regex :
             result = re.compile(self.regex).findall(source)
+        #Apply the adapter
         if self.adapter :
             result = self.adapter(result)
         return result
@@ -148,19 +146,23 @@ class Scraper():
         Instance    :
             name                : the name or id of the scraper.
             root                : The root url.
-            date_format         : Scraped date format, will be converted to YYYY-MM-DD.
-            time_format         : Scraped time format, will be converted to HH:MM:SS.
+            to_crawl            : The urls to crawl first.
+            to_scrape           : The urls to scrape first.
+            save_every          : Calls when the number of scraped data is reached.
+            cooldown            : Time to wait between each request.
             fields              : Fields definitions.
-            before_save         : Executed just before saving the data.
-            current_url         : The current url.
-            crawl_parser        : Parser to extract the pages urls
-            scrape_parser       : Parser to extract the data from page source
+            container_parser    : Parses the source and locates the fields containers.
+            crawl_parser        : Parser to extract the pages urls.
+            scrape_parser       : Parser to extract the data from page source.
     '''
     def __init__(self                       ,
             name           = 'scraper'      ,
             root           = 'root'         ,
-            date_format    = '%Y-%m-%d'     ,
-            time_format    = '%Y-%m-%d'     ,
+            to_crawl       = ['root']       ,
+            to_scrape       = ['root']      ,
+            save_every     = 100            ,
+            cooldown       = 1              ,
+            logger         = None,
             fields         = [
                                 Field(
                                     name='field1'                                                       ,
@@ -175,7 +177,7 @@ class Scraper():
                                     default_value= 'value_3'                                            ,
                                     parser = Parser(None, None, None, None, None))                      , ]
                                             ,
-            before_save    = None           ,
+            container_parser= None          ,
             crawl_parser   = Parser(
                                 default_value   = ''                ,
                                 dict_path       = None              ,
@@ -191,18 +193,24 @@ class Scraper():
         ):
         self.name           = name
         self.root           = root
-        self.date_format    = date_format
-        self.time_format    = time_format
+        self.save_every     = save_every
+        self.cooldown       = cooldown
+        self.logger         = logger
         self.fields         = fields
-        self.before_save    = before_save
+        self.container_parser= container_parser
         self.crawl_parser   = crawl_parser
         self.scrape_parser  = scrape_parser
 
         self.crawled        = set()
         self.scraped        = set()
 
-        self.to_crawl       = set()
-        self.to_scrape      = set()
+        self.to_crawl       = set(to_crawl)
+        self.to_scrape      = set(to_scrape)
+
+        self.found_to_crawl = len(self.to_crawl)
+        self.found_to_scrape= 0
+
+        self.collected      = []
 
         #Check if root ends with /
         self.root = self.root+ ('/' if self.root[-1] !='/' else '')
@@ -245,7 +253,7 @@ class Scraper():
             {
             'before': before_test_request                       ,
             'args'  : ['']                                      ,
-            'assert': {'crawl': ['#next_crawl'], 'scrape': ['#next_scrape']} ,
+            'assert': {'crawl': ['root/#next_crawl'], 'scrape': ['root/#next_scrape']} ,
             'after' : after_test_request                        ,}
         ])
     def crawl(self, url):
@@ -255,21 +263,23 @@ class Scraper():
                 url     : The url to crawl.
             Returns : A dict with a list of urls to scrape and a list of urls to cralws.
         '''
+        source  = saltools.do_request(url,logger = self.logger).text
+        sleep(self.cooldown)
 
-        source  = saltools.do_request(url)
-
-        crawl   = self.crawl_parser.parse(source)
-        scrape  = self.scrape_parser.parse(source)
+        crawl   = [self.full_url(x) for x in self.crawl_parser.parse(source)]
+        scrape  = [self.full_url(x) for x in self.scrape_parser.parse(source)]
 
         #Add the urls to the crawling list
         for x in crawl :
             if x not in self.crawled :
                 self.to_crawl.add(x)
+                self.found_to_crawl+= 1
 
         #Add the urls to the scraping list
         for x in scrape :
             if x not in self.scraped :
                 self.to_scrape.add(x)
+                self.found_to_scrape+= 1
 
         return { 'crawl' : crawl, 'scrape': scrape}
 
@@ -279,10 +289,10 @@ class Scraper():
             {
             'before': before_test_request                       ,
             'args'  : ['']                                      ,
-            'assert': {
+            'assert': [{
                 'field1': 'scraped_1',
                 'field2': 'scraped_2',
-                'field3': 'value_3'} ,
+                'field3': 'value_3'}] ,
             'after' : after_test_request                        ,}
         ])
     def scrape(self, url):
@@ -293,10 +303,16 @@ class Scraper():
             Returns :
                 A dict of scraped fields names and their values.
         '''
-        source = saltools.do_request(url)
-        return self.adapt({
-            field.name: field.parser.parse(source) or field.default_value for field in self.fields
-        })
+        source = saltools.do_request(url,logger = self.logger).text.encode('utf-8',errors='replace')
+        sleep(self.cooldown)
+
+        containers = [source]
+        if self.container_parser :
+            containers = self.container_parser.parse(source)
+
+        return self.adapt([{
+            field.name: field.parser.parse(container) or field.default_value for field in self.fields
+        } for container in containers])
 
     @saltools.handle_exception(level=saltools.Level.CRITICAL)
     def adapt(self, data):
@@ -306,3 +322,56 @@ class Scraper():
                 The data to process
         '''
         return data
+
+    @saltools.handle_exception(level=saltools.Level.CRITICAL)
+    def start(self):
+        '''
+            Starts the scraper.
+        '''
+        while len(self.to_crawl) and not self.stop():
+            crawl_url = self.to_crawl.pop()
+            self.crawl(crawl_url)
+            self.crawled.add(crawl_url)
+            while len(self.to_scrape) :
+                scrape_url = self.to_scrape.pop()
+                self.collected+= self.scrape(scrape_url)
+                self.scraped.add(scrape_url)
+                if len(self.collected) >= self.save_every:
+                    self.before_save()
+                    self.save()
+
+    @saltools.handle_exception(level=saltools.Level.CRITICAL)
+    def before_save(self):
+        '''
+            Override this if needed, this is executed before save is called.
+        '''
+        pass
+
+    @saltools.handle_exception(level=saltools.Level.CRITICAL)
+    def stop(self):
+        '''
+            Returns a boolen, used to stop the scraping.
+        '''
+        return len(self.scraped) >= 2
+
+    @saltools.handle_exception(level=saltools.Level.CRITICAL)
+    def save(self):
+        '''
+            A simple implementaion of save, dumps collected data to txt file.
+        '''
+        with open('scraped.txt','a+',encoding='utf-8') as f:
+            for data in self.collected:
+                text = ('\n'+'-'*100+'\n').join(['{:<20}:\n{}\n{}'.format(k,'-'*20,v) for k,v in data.items()])
+                f.write((text+'\n'+'='*100+'\n'+'='*100+'\n'))
+        self.collected.clear()
+
+
+
+
+
+
+
+
+
+
+#
