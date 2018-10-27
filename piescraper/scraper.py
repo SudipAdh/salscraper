@@ -1,143 +1,281 @@
 '''
-    Base scraper class
-    by saledddar@gmail.com, 2018
+    Base scraper class.
 '''
+__author__      = 'saledddar'
+__email___      = 'saledddar@gmail.com'
+__copyright__   = '2018, piescraper'
 
 import re
 import saltools
 
-from time import sleep
-from pyunet import unit_test
-from enum import Enum
+from time       import sleep
+from pyunet     import unit_test
+from enum       import Enum
+from saltools   import Level
+from data       import *
+from interface  import *
 
-saltools.set_logger(saltools.Logger('EXCEPTION', True))
-
-#-------------------------------------------------------------
+####################################################################################################
 #   Testing code
-#-------------------------------------------------------------
-def mock_do_request(*args,**kwargs):
+####################################################################################################
+
+class TESTS():
+
+    class TestParser()  :
+        source  =   '''
+                <div class="c1">
+                urls::[
+                    url1,
+                    url2,
+                    url3
+                    ]
+                </div>
+                <div class="fields">
+                    <a>value1</a>
+                    <a>value2</a>
+                </div>
+            '''
+
+        test_join_results       = [
+            {
+                'args'      : [
+                    [
+                        Result(
+                            values      = {
+                                'field1': 'value1',
+                                'field3': 'value3'} ,
+                            name        = 'name1'       ,
+                            id          = 'id1'         ,
+                            result_type = ResultType.DATA),
+                        Result(
+                            values      = {
+                                'field1': 'valuex',
+                                'field2': 'value2',
+                                'field4': 'value4'} ,
+                            name        = 'name1'       ,
+                            id          = 'id1'         ,
+                            result_type = ResultType.DATA)]],
+                'assert'    : lambda x: x.name      == 'name1' and   \
+                                        x.values    == {
+                                            'field1': 'value1',
+                                            'field3': 'value3',
+                                            'field2': 'value2',
+                                            'field4': 'value4'}},
+            {
+                'args'      : [
+                    [
+                        Result(
+                            values      = {'field1': 'value1', 'field3': 'value3'},
+                            name        = 'namex'           ,
+                            id          = 'id1'             ,
+                            result_type = ResultType.DATA   ),
+                        Result(
+                            values      = {'field1': 'valuex', 'field2': 'value2', 'field4': 'value4'},
+                            name        = 'namex'           ,
+                            id          = 'id1'             ,
+                            result_type = ResultType.DATA   )]],
+                'assert'    : lambda x: x.name      == 'namex' and \
+                                        x.values    == {'field1': 'value1', 'field3': 'value3'}}]
+        test__get_rules         = [
+            {
+                'args'      : ['root/just_a_url_1'],
+                'assert'    : lambda x: len(x)==2},
+            {
+                'args'      : ['root/just_a_abc_2'],
+                'assert'    : lambda x: len(x)==2}]
+        test_parse              = [
+
+            ]
+
+        def ic_join_results ():
+            return Parser(containers_adapters= {'namex': lambda x: x[0].values})
+        def ic___get_rules  ():
+            return Parser(
+                rules       = [
+                        ParsingRule('root/[a-z_]+\d')               ,
+                        ParsingRule('root/just_a_[a-z]+_\d')    ]   ,
+                containers_adapters = {}                            ,
+                )
+        def ic_test_parse   ():
+            return Parser(
+                rules       = [
+                        ParsingRule('root/[a-z_]+\d')               ,
+                        ParsingRule('root/just_a_[a-z]+_\d')    ]   ,
+                containers_adapters = {}                            ,
+                )
+
+    class TestScraper() :
+        test__adjust_results    = [
+            {
+                'args'      : [
+                    [
+                        Result(
+                            values      = {
+                                'field1': 'value1',
+                                'field3': 'value3'} ,
+                            name        = 'name1'                       ,
+                            id          = 'id1'                         ,
+                            result_type = ResultType.DATA               ),
+                        Result(
+                            values      = {
+                                'field1': 'valuex',
+                                'field2': 'value2',
+                                'field4': 'value4'} ,
+                            name        = 'name1'                       ,
+                            id          = 'id1'                         ,
+                            result_type = ResultType.DATA               ),
+                        Result(
+                            values      = {
+                                'field1': 'value1',
+                                'field2': 'value2'}                     ,
+                            name        = 'name2'                       ,
+                            id          = 'id1'                         ,
+                            result_type = ResultType.DATA               ),
+                        Result(
+                            values      = {
+                                'field3': 'value3',
+                                'field4': 'value4'} ,
+                            name        = 'name2'                       ,
+                            id          = 'id1'                         ,
+                            result_type = ResultType.DATA               )]],
+                'assert'    : lambda x: x[0].values         == {'field1': 'value1', 'field3': 'value3', 'field2': 'value2', 'field4': 'value4'} and \
+                                        x[0].name           ==  'name1'             and \
+                                        x[0].result_type    == ResultType.DATA      and \
+                                        x[0].id             == 'id1'                and \
+                                        x[1].values         == {'field1': 'value1', 'field2': 'value2', 'field3': 'value3', 'field4': 'value4'} and \
+                                        x[1].name           ==  'name2'             and \
+                                        x[1].result_type    == ResultType.DATA      and \
+                                        x[1].id             == 'id1'}]
+        test__full_url          = [
+            {
+                'args'  : ['just_a_url_1','root'],
+                'assert': 'root/just_a_url_1'},
+            {
+                'args'  : ['just_a_url_2', 'root_0'],
+                'assert': 'root_0/just_a_url_2'},
+            {
+                'args'  : ['https://just_a_url_3','root'],
+                'assert': 'https://just_a_url_3'}]
+
+    class Mocks():
+        def mock_do_request(*args, **kwargs):
+            '''
+                A mock for saltools.do_request
+            '''
+            return '''
+                <root>
+                <a href="#next_crawl"></a>
+                <a href="#next_scrape"></a>
+                <div>scraped_1</div>
+                1scraped_2
+                </root>
+            '''
+        def before_do_request():
+            '''
+                Executed before testing crawl
+            '''
+            saltools.save_do_request = saltools.do_request
+            saltools.do_request = mock_do_request
+        def after_do_request():
+            '''
+                Executed before testing crawl
+            '''
+            saltools.do_request = saltools.save_do_request
+            saltools.save_do_request = None
+
+
+####################################################################################################
+#   Main code
+####################################################################################################
+
+class ParsingRule():
     '''
-        A mock for saltools.do_request
-    '''
-    return '''
-        <root>
-        <a href="#next_crawl"></a>
-        <a href="#next_scrape"></a>
-        <div>scraped_1</div>
-        1scraped_2
-        </root>
+        A parsing rule for a url pattern.
+        Args    :
+            url_re      : Regular expression to identify urls.
+            containers  : Data containers.
     '''
 
-def before_test_request():
-    '''
-        Executed before testing crawl
-    '''
-    saltools.save_do_request    = saltools.do_request
-    saltools.do_request         = mock_do_request
-
-def after_test_request():
-    '''
-        Executed before testing crawl
-    '''
-    saltools.do_request         = saltools.save_do_request
-    saltools.save_do_request    = None
-
-#-------------------------------------------------------------
-#   Testing code
-#-------------------------------------------------------------
-
-class MaxMissingAction(Enum):
-    '''
-        Options whne max missing for a field is reached.
-    '''
-    IGNORE      = 0
-    EXCEPTION   = 1
-    EXIT        = 2
+    def __init__(
+        self            ,
+        url_re          ,
+        containers      ,
+        ):
+        self.url_re             = re.compile(url_re)
+        self.containers         = containers
 
 class Parser():
     '''
-        Parses raw data into the needed information
+        Parses urls and returns tasks, data and urls.
         Instance    :
-            default             : Default value.
-            dict_path           : The path to the value in a python dict.
-            xpaths              : Xpath expression to extract the value.
-            regexs              : Regular expression to extract the value.
-            adapters            : Adpaters to adapt extracted value.
+            rules                   : The parsing rules for different url patterns.
+            containers_adapters     : A dict containing adapters to join multiple field containers.
     '''
+
     def __init__(
-        self                                ,
-        default_value   = 'value'           ,
-        dict_path       = ['a']             ,
-        xpath           = '//a/text()'      ,
-        regex           = '\d+'             ,
-        adapter         = lambda x : x[:5]  ,
-        ):
-        self.default_value = default_value
-        self.dict_path      = dict_path
-        self.xpath          = xpath
-        self.regex          = regex
-        self.adapter        = adapter
+        self                    ,
+        rules                   ,
+        containers_adapters     ):
+        self.rules                  = rules
+        self.containers_adapters    = containers_adapters
 
-
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
-    @unit_test(
-        [
-            {
-            'args'  : [{'a':'Hello world'}] ,
-            'assert': 'Hello'}
-        ])
-    def parse(self,source):
+    @unit_test(TESTS.TestParser.test__get_rules, instance_creator= TESTS.TestParser.ic___get_rules)
+    @saltools.handle_exception()
+    def __get_rules(self, url):
         '''
-            Parses the source and extracts information, xpath, regex then adapters are applied.
+            Get the parsing rules for the given url.
             Args    :
-                source  : The source to be parsed.
-            Returns :
-                A dict of extracted information.
+                url     : The url to parse.
+            Returns : The parsing rules for the given url.
         '''
-        result  = self.default_value
-        #Extract json
-        if self.dict_path :
-            result = saltools.dict_path(source,self.dict_path)
-        #Extract xpath
-        elif self.xpath :
-            result = saltools.find_xpath(source,self.xpath)
-        #Extract Regex
-        elif self.regex :
-            result = re.compile(self.regex).findall(source)
-        #Apply the adapter
-        if self.adapter :
-            result = self.adapter(result)
-        return result
+        rules   = [x for x in self.rules if x.url_re.match(url)]
 
-class Field():
-    '''
-        A data field.
-        Instance    :
-            name            : Field name.
-            default_value   : Default value.
-            required        : Scraper will raise an exception if this field is missing.
-            max_missing     : Naximum allowed number of collected data with field missing.
-            on_max_missing  : What to do when max_missing is reached.
-            parser          : A parser to extract the field from a source.
-    '''
-    def __init__(
-        self                                        ,
-        name            = 'field'                   ,
-        default_value   = 'value'                   ,
-        required        = False                     ,
-        max_missing     = 100                       ,
-        on_max_missing  = MaxMissingAction.IGNORE   ,
-        parser          = Parser()                 ,
-        ):
-        self.name           = name
-        self.default_value  = default_value
-        self.required       = required
-        self.max_missing    = max_missing
-        self.on_max_missing = on_max_missing
-        self.parser         = parser
+        assert len(rules)>0,'No parsing rules are found for {}'.format(url)
 
-        self.found          = 0
-        self.missing        = 0
+        return rules
+
+    @unit_test(TESTS.TestParser.test_parse, instance_creator= TESTS.TestParser.ic_test_parse)
+    @saltools.handle_exception()
+    def parse(self, source, url):
+        '''
+            Parses the source of the given url using the correct rule.
+            Args    :
+                source  : The html source.
+                url     : The url.
+        '''
+        #Get parsing rules
+        rules   = self.__get_rules(url)
+        results = []
+
+        for rule in rules :
+            for container in rule.containers :
+                results.extend(container.parse(source, url))
+
+        return results
+
+    @unit_test(TESTS.TestParser.test_join_results, instance_creator= TESTS.TestParser.ic_join_results)
+    @saltools.handle_exception()
+    def join_results(self, results):
+        '''
+            Join containers using the specified functions.
+            Args    :
+                containers  : Containers to join.
+        '''
+        if not len(results):
+            return None
+
+        joined_result  = {}
+        adapter = self.containers_adapters.get(results[0].name)
+
+        #If an adapter is specified
+        if adapter  :
+            joined_result = adapter(results)
+        else        :
+            for result in results:
+                for key in result.values.keys():
+                    joined_result[key] = result.values[key] if not joined_result.get(key) else joined_result[key]
+
+        return Result(joined_result, name= results[0].name, result_type= results[0].result_type, id= results[0].id)
 
 class Scraper():
     '''
@@ -147,231 +285,175 @@ class Scraper():
             name                : the name or id of the scraper.
             root                : The root url.
             to_crawl            : The urls to crawl first.
-            to_scrape           : The urls to scrape first.
-            save_every          : Calls when the number of scraped data is reached.
-            cooldown            : Time to wait between each request.
-            fields              : Fields definitions.
-            container_parser    : Parses the source and locates the fields containers.
-            crawl_parser        : Parser to extract the pages urls.
-            scrape_parser       : Parser to extract the data from page source.
+            parser              : Parsing rules for urls.
+            logger              : Logger.
+            request_rate        : Maximum number of requests allowed per minute.
+            interface           : Url fetching interface.
     '''
-    def __init__(self                       ,
-            name           = 'scraper'      ,
-            root           = 'root'         ,
-            to_crawl       = ['root']       ,
-            to_scrape       = ['root']      ,
-            save_every     = 100            ,
-            cooldown       = 1              ,
-            logger         = None,
-            fields         = [
-                                Field(
-                                    name='field1'                                                       ,
-                                    default_value= 'value_1'                                            ,
-                                    parser = Parser(None, None, '//div/text()', None, saltools.join_array_text)) ,
-                                Field(
-                                    name='field2'                                                       ,
-                                    default_value= 'value_2'                                            ,
-                                    parser = Parser(None, None, None, '\d(\w+)', lambda x:x[0]))        ,
-                                Field(
-                                    name='field3'                                                       ,
-                                    default_value= 'value_3'                                            ,
-                                    parser = Parser(None, None, None, None, None))                      , ]
-                                            ,
-            container_parser= None          ,
-            crawl_parser   = Parser(
-                                default_value   = ''                ,
-                                dict_path       = None              ,
-                                xpath           = '//a[1]/@href'    ,
-                                regex           = None              ,
-                                adapter         = None              ) ,
-            scrape_parser  = Parser(
-                                default_value   = ''                ,
-                                dict_path       = None              ,
-                                xpath           = '//a[2]/@href'    ,
-                                regex           = None              ,
-                                adapter         = None              ) ,
-        ):
-        self.name           = name
-        self.root           = root
-        self.save_every     = save_every
-        self.cooldown       = cooldown
-        self.logger         = logger
-        self.fields         = fields
-        self.container_parser= container_parser
-        self.crawl_parser   = crawl_parser
-        self.scrape_parser  = scrape_parser
 
-        self.crawled        = set()
-        self.scraped        = set()
+    def __init__(
+        self            ,
+        name            ,
+        root            ,
+        to_crawl        ,
+        parser          ,
+        logger          ,
+        request_rate    ,
+        interface       ):
+        self.name               = name
+        self.root               = root
+        self.to_crawl           = set(to_crawl)
+        self.parser             = parser
+        self.logger             = logger
+        self.request_rate       = request_rate
+        self.interface          = interface
 
-        self.to_crawl       = set(to_crawl)
-        self.to_scrape      = set(to_scrape)
+        self.crawled            = set()
 
-        self.found_to_crawl = len(self.to_crawl)
-        self.found_to_scrape= 0
+        # Check if root ends with /
+        self.root               = self.root + ('/' if self.root[-1] != '/' else '')
+        self.cooldown           = 60.0/request_rate
+        self.collected          = []
 
-        self.collected      = []
 
-        #Check if root ends with /
-        self.root = self.root+ ('/' if self.root[-1] !='/' else '')
-
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
-    @unit_test(
-        [
-            {
-            'args'  : ['just_a_url_1'] ,
-            'assert': 'root/just_a_url_1'},
-            {
-            'args'  : ['just_a_url_2','root_0'] ,
-            'assert': 'root_0/just_a_url_2'},
-            {
-            'args'  : ['https://just_a_url_3'] ,
-            'assert': 'https://just_a_url_3'}
-        ])
-    def full_url(self, url, root = None):
+    @unit_test(TESTS.TestScraper.test__full_url)
+    @saltools.handle_exception()
+    def __full_url(self, url, root= None):
         '''
-            Gets the full url from a relatie url.
+            Gets the full url from a relative url.
             Args    :
                 url     : The url.
                 root    : Custom root, if none, self.root is used.
             Returns     : The full url
         '''
+
+        root    = self.root if not root else root
+
         if url[:4] == 'http':
             return url
-        else :
-            #Set root to self.root if not specified.
-            root    = self.root if not root else root
-            root    = root+ ('/' if root[-1] !='/' else '')
+        else:
+            root = root + ('/' if root[-1] != '/' else '')
+            # Check if url starts with /
+            url = root + (url[1:] if url[0] == '/' else url)
 
-            #Check if url starts with /
-            url = root+ (url[1:] if url[0] =='/' else url)
         return url
 
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
-    @unit_test(
-        [
-            {
-            'before': before_test_request                       ,
-            'args'  : ['']                                      ,
-            'assert': {'crawl': ['root/#next_crawl'], 'scrape': ['root/#next_scrape']} ,
-            'after' : after_test_request                        ,}
-        ])
-    def crawl(self, url):
+    @saltools.handle_exception()
+    def __parser_rec(self, url):
         '''
-            Crawls a page to extract pages to scrape and to crawl.
+            Uses the parser to get the desired data, if the parser returns a url instead, the method is recursively called.
             Args    :
-                url     : The url to crawl.
-            Returns : A dict with a list of urls to scrape and a list of urls to cralws.
+                url     : The url to parse.
         '''
-        source  = saltools.do_request(url,logger = self.logger).text
+        data            = []
+        source          = self.interface.request_source(self.build_request(url))
+
+        self.logger.log(Level.INFO,{'Action':'Sleep'})
         sleep(self.cooldown)
 
-        crawl   = [self.full_url(x) for x in self.crawl_parser.parse(source)]
-        scrape  = [self.full_url(x) for x in self.scrape_parser.parse(source)]
+        results         = self.parser.parse(source, url)
+        self.crawled.update(url)
 
-        #Add the urls to the crawling list
-        for x in crawl :
-            if x not in self.crawled :
-                self.to_crawl.add(x)
-                self.found_to_crawl+= 1
+        #For result in results
+        for result in results:
+            #If some tasks, scraope them all
+            if result.result_type       == ResultType.TASK  :
+                for url in result.values.values() :
+                    data.extend(self.__parser_rec(url))
+            #If urls, add them to the crawling stack
+            elif result.result_type     == ResultType.URLS   :
+                self.to_crawl.update([x for x in result.values.values() if x not in self.crawled])
 
-        #Add the urls to the scraping list
-        for x in scrape :
-            if x not in self.scraped :
-                self.to_scrape.add(x)
-                self.found_to_scrape+= 1
-
-        return { 'crawl' : crawl, 'scrape': scrape}
-
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
-    @unit_test(
-        [
-            {
-            'before': before_test_request                       ,
-            'args'  : ['']                                      ,
-            'assert': [{
-                'field1': 'scraped_1',
-                'field2': 'scraped_2',
-                'field3': 'value_3'}] ,
-            'after' : after_test_request                        ,}
-        ])
-    def scrape(self, url):
-        '''
-            Scrape the url for data.
-            Args    :
-                url : The url to scrape.
-            Returns :
-                A dict of scraped fields names and their values.
-        '''
-        source = saltools.do_request(url,logger = self.logger).text.encode('utf-8',errors='replace')
-        sleep(self.cooldown)
-
-        containers = [source]
-        if self.container_parser :
-            containers = self.container_parser.parse(source)
-
-        return self.adapt([{
-            field.name: field.parser.parse(container) or field.default_value for field in self.fields
-        } for container in containers])
-
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
-    def adapt(self, data):
-        '''
-            Adapt the scraped data.
-            Args :
-                The data to process
-        '''
+            #If data, return the values
+            else                                        :
+                data.append(result)
         return data
 
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
+    @unit_test(TESTS.TestScraper.test__adjust_results)
+    @saltools.handle_exception()
+    def __adjust_results(self, results):
+        '''
+            Adjsuts data collected from multiple sources to a single data structure.
+            Args    :
+                data    : The data containers.
+        '''
+        data    = []
+
+        #Call join_containers for containers with the same names and ids
+        names   = set([result.name for result in results])
+        for name in names :
+            same_names  = [result for result in results if result.name == name]
+            ids         = set([same_name.id for same_name in same_names])
+            for id in ids :
+                #Get containers with same ids
+                same_ids = [same_name for same_name in same_names if same_name.id == id]
+
+                #For each field
+                data.append(self.parser.join_results(same_ids))
+        data  = list(sorted(data, key= lambda x: x.name))
+        data  = list(sorted(data, key= lambda x: x.id))
+        return data
+
+    @saltools.handle_exception()
+    def __start(self):
+        '''
+            Crawler loop.
+        '''
+        while len(self.to_crawl) and not self.stop_on():
+            url     = self.to_crawl.pop()
+            print(url)
+            data    = self.__parser_rec(url)
+
+            #Adjust the data and add it to the collected data list
+            self.collected.extend(self.__adjust_results(data))
+
+
+    @saltools.handle_exception()
     def start(self):
         '''
             Starts the scraper.
         '''
-        while len(self.to_crawl) and not self.stop():
-            crawl_url = self.to_crawl.pop()
-            self.crawl(crawl_url)
-            self.crawled.add(crawl_url)
-            while len(self.to_scrape) :
-                scrape_url = self.to_scrape.pop()
-                self.collected+= self.scrape(scrape_url)
-                self.scraped.add(scrape_url)
-                if len(self.collected) >= self.save_every:
-                    self.before_save()
-                    self.save()
+        self.logger.log(Level.INFO, {'Action':'Start'})
+        self.on_start()
+        self.logger.log(Level.INFO, {'Action':'Started'})
+        self.__start()
 
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
-    def before_save(self):
+    @saltools.handle_exception()
+    def stop(self):
         '''
-            Override this if needed, this is executed before save is called.
+            Stops the scraper.
+        '''
+        self.logger.log(Level.INFO, {'Action':'Stop'})
+        self.on_stop()
+        self.logger.log(Level.INFO, {'Action':'Stopped'})
+
+    @saltools.handle_exception()
+    def build_request(self, url):
+        '''
+            Executed before start.
+        '''
+        return {
+            'is_post'   : False ,
+            'url'       : url   ,
+            }
+
+    @saltools.handle_exception()
+    def stop_on(self):
+        '''
+            Stops the scraper if returns True.
+        '''
+        return False
+
+    @saltools.handle_exception()
+    def on_start(self):
+        '''
+            Executed before start.
         '''
         pass
 
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
-    def stop(self):
+    @saltools.handle_exception()
+    def on_stop(self):
         '''
-            Returns a boolen, used to stop the scraping.
+            Executed before stop.
         '''
-        return len(self.scraped) >= 2
-
-    @saltools.handle_exception(level=saltools.Level.CRITICAL)
-    def save(self):
-        '''
-            A simple implementaion of save, dumps collected data to txt file.
-        '''
-        with open('scraped.txt','a+',encoding='utf-8') as f:
-            for data in self.collected:
-                text = ('\n'+'-'*100+'\n').join(['{:<20}:\n{}\n{}'.format(k,'-'*20,v) for k,v in data.items()])
-                f.write((text+'\n'+'='*100+'\n'+'='*100+'\n'))
-        self.collected.clear()
-
-
-
-
-
-
-
-
-
-
-#
+        pass
