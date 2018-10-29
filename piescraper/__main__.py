@@ -1,3 +1,3 @@
-'''
-    by saledddar@gmail.com, 2018
-'''
+__author__      = 'saledddar'
+__email___      = 'saledddar@gmail.com'
+__copyright__   = '2018, piescraper'

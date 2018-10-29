@@ -9,11 +9,11 @@ from saltools import do_request
 
 
 class InterfaceBase():
-    def __init__():
+    def __init__(self):
         pass
 
 
 class RequestsInterface(InterfaceBase):
 
-    def request_source(request_dict):
+    def request_source(self, request_dict):
         return do_request(**request_dict).text

@@ -12,8 +12,8 @@ from time       import sleep
 from pyunet     import unit_test
 from enum       import Enum
 from saltools   import Level
-from data       import *
-from interface  import *
+from .data      import *
+from .interface import *
 
 ####################################################################################################
 #   Testing code
@@ -188,34 +188,49 @@ class TESTS():
 #   Main code
 ####################################################################################################
 
-class ParsingRule():
+class ParsingRule(BaseCreatorFromDict):
     '''
         A parsing rule for a url pattern.
-        Args    :
-            url_re      : Regular expression to identify urls.
-            containers  : Data containers.
+        Instance    :
+            string      , url_re      : Regular expression to identify urls.
+            Container   , containers  : Data containers.
     '''
+
+    RECURSIVE_PARAMS    = {
+        'containers'    : Container}
 
     def __init__(
         self            ,
         url_re          ,
-        containers      ,
-        ):
+        containers      ):
+        '''
+            Args    :
+                string      , url_re      : Regular expression to identify urls.
+                Container   , containers  : Data containers.
+        '''
         self.url_re             = re.compile(url_re)
         self.containers         = containers
 
-class Parser():
+class Parser(BaseCreatorFromDict):
     '''
-        Parses urls and returns tasks, data and urls.
+        Holds the arsing logic for a scraper.
         Instance    :
-            rules                   : The parsing rules for different url patterns.
-            containers_adapters     : A dict containing adapters to join multiple field containers.
+            ParsingRule list    , rules                   : The parsing rules for different url patterns.
+            dict                , containers_adapters     : A dict containing adapters to join multiple field containers.
     '''
+
+    RECURSIVE_PARAMS    = {
+        'rules'    : ParsingRule}
 
     def __init__(
         self                    ,
         rules                   ,
         containers_adapters     ):
+        '''
+            Ars    :
+                ParsingRule list    , rules                   : The parsing rules for different url patterns.
+                dict                , containers_adapters     : A dict containing adapters to join multiple field containers.
+        '''
         self.rules                  = rules
         self.containers_adapters    = containers_adapters
 
@@ -277,19 +292,36 @@ class Parser():
 
         return Result(joined_result, name= results[0].name, result_type= results[0].result_type, id= results[0].id)
 
-class Scraper():
+    def creator_from_dict(params):
+        '''
+            Creates an instance from a dict of params:
+            Args    :
+                params  : contains the parameters.
+            Returns :
+                An instance.
+        '''
+        params['rules']    = [ParsingRule.creator_from_dict(x) for x in params['rules']]
+        return Parser(** params)
+
+class Scraper(BaseCreatorFromDict):
     '''
         Base scraper class, contains standard methods and base scraping strcuture
         Scrapers should inherit from this class, override it's method when needed
         Instance    :
-            name                : the name or id of the scraper.
-            root                : The root url.
-            to_crawl            : The urls to crawl first.
-            parser              : Parsing rules for urls.
-            logger              : Logger.
-            request_rate        : Maximum number of requests allowed per minute.
-            interface           : Url fetching interface.
+            string          , name                : the name or id of the scraper.
+            string,         , root                : The root url.
+            string set      , to_crawl            : The urls to crawl first.
+            Parser          , parser              : Parsing rules for urls.
+            Logger          , logger              : Logger.
+            int             , request_rate        : Maximum number of requests allowed per minute.
+            InterfaceBase   , interface           : Interface for sending requests to servers.
+            string set      , crawled             : Urls already crawled.
+            int             , sleep_time          : Time in seconds to wait between each request.
+            dict list       , collected           : Collected data.
     '''
+
+    RECURSIVE_PARAMS    = {
+        'parser'    : Parser}
 
     def __init__(
         self            ,
@@ -300,6 +332,16 @@ class Scraper():
         logger          ,
         request_rate    ,
         interface       ):
+        '''
+            Args    :
+                string          , name                : the name or id of the scraper.
+                string,         , root                : The root url.
+                string list     , to_crawl            : The urls to crawl first.
+                Parser          , parser              : Parsing rules for urls.
+                Logger          , logger              : Logger.
+                int             , request_rate        : Maximum number of requests allowed per minute.
+                InterfaceBase   , interface           : Interface for sending requests to servers.
+        '''
         self.name               = name
         self.root               = root
         self.to_crawl           = set(to_crawl)
@@ -312,9 +354,8 @@ class Scraper():
 
         # Check if root ends with /
         self.root               = self.root + ('/' if self.root[-1] != '/' else '')
-        self.cooldown           = 60.0/request_rate
+        self.sleep_time         = 60.0/request_rate
         self.collected          = []
-
 
     @unit_test(TESTS.TestScraper.test__full_url)
     @saltools.handle_exception()
@@ -349,14 +390,14 @@ class Scraper():
         source          = self.interface.request_source(self.build_request(url))
 
         self.logger.log(Level.INFO,{'Action':'Sleep'})
-        sleep(self.cooldown)
+        sleep(self.sleep_time)
 
         results         = self.parser.parse(source, url)
         self.crawled.update(url)
 
         #For result in results
         for result in results:
-            #If some tasks, scraope them all
+            #If some tasks, scrape them all
             if result.result_type       == ResultType.TASK  :
                 for url in result.values.values() :
                     data.extend(self.__parser_rec(url))
@@ -401,7 +442,6 @@ class Scraper():
         '''
         while len(self.to_crawl) and not self.stop_on():
             url     = self.to_crawl.pop()
-            print(url)
             data    = self.__parser_rec(url)
 
             #Adjust the data and add it to the collected data list
@@ -457,3 +497,14 @@ class Scraper():
             Executed before stop.
         '''
         pass
+
+    def creator_from_dict(params):
+        '''
+            Creates an instance from a dict of params:
+            Args    :
+                params  : contains the parameters.
+            Returns :
+                An instance.
+        '''
+        params['parser']    = Parser.creator_from_dict(params['parser'])
+        return Scraper(** params)

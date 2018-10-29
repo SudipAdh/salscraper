@@ -131,14 +131,43 @@ class SourceType    (Enum):
     URL     = 0
     SOURCE  = 1
 
-class Result():
+class BaseCreatorFromDict():
+    '''
+        A base for classes that uses dict creators.
+        Static  :
+            dict    , RECURSIVE_PARAMS  : Parameters that result in a call to creator_from_dict.
+    '''
+
+    @classmethod
+    def creator_from_dict(cls, params):
+        '''
+            Creates an instance from a dict of params:
+            Args    :
+                params  : contains the parameters.
+            Returns :
+                An instance.
+        '''
+
+        kwargs = {}
+        for x in params :
+            if x in cls.RECURSIVE_PARAMS :
+                if isinstance(params[x], collections.Iterable):
+                    cls_x       = cls.RECURSIVE_PARAMS[x]
+                    kwargs[x]   = [cls_x.creator_from_dict(y) if  not isinstance(y, cls_x) else y for y in params[x]]
+                else :
+                    kwargs[x]   = cls_x.creator_from_dict(params[x]) if not isinstance(params[x], cls_x) else params[x]
+            else :
+                kwargs[x]   = params[x]
+        return cls(** kwargs)
+
+class Result(BaseCreatorFromDict):
     '''
         A parsing result
         Instance    :
-            value       : Th extracted value.
-            result_type : The type of the extracted data.
-            id          : The field used as id.
-            name        : Name of the container.
+            ResultType  , result_type : The type of the extracted data.
+            dict        , value       : Th extracted value.
+            string      , id          : The field used as id.
+            string      , name        : Name of the container.
     '''
 
     def __init__(self, values, result_type, id, name):
@@ -148,86 +177,22 @@ class Result():
         self.name       = name
 
     def __repr__(self):
+        '''
+            overide.
+        '''
         return json.dumps(self.values, indent= 2)
 
-class Container():
+class ContextParser(BaseCreatorFromDict):
     '''
-        A container for fields or other containers.
+        A context parser.
         Instance    :
-            name            : The name of container.
-            children        : A list of fields.
-            id              : Field name used to identify and group different children data from multiple containers.
-            result_type     : Result type for the container.
-            parsers         : Used to extract the context to which the fields parsers are applied.
-            adapter         : Adapts the parsers result.
-            custom_parser   : A function that takes two arguments(source, url) and provides custom parsing behaviour, must return an list of dict.
+            string      , name        : The name or id of the parser, optional, can be used by the adapter in case of multiple parsers.
+            string      , expression  : Expression as a json path, regex or xpath, in case of custom parser types, this should point to a function.
+            ParserType  , parser_type : The type of the parser, json, xpath, regex or custom.
+            boolean     , pick_first  : Picks the first element if the result of expression evaluation is an array.
     '''
 
-    def __init__(
-        self            ,
-        name            ,
-        fields          ,
-        id              ,
-        result_type     ,
-        parsers         ,
-        adapter         ,
-        custom_parser   ):
-
-        self.name           = name
-        self.fields         = fields
-        self.id             = id
-        self.result_type    = result_type
-        self.parsers        = parsers
-        self.adapter        = adapter
-        self.custom_parser  = custom_parser
-
-    @unit_test(TESTS.TestContainer.test_parse, instance_creator= TESTS.TestContainer.ic_test_parse)
-    @handle_exception()
-    def parse(self, source, url):
-        '''
-            Prases the container.
-            Args    :
-                source  : Source to parse.
-                url     : Url to parse.
-            Returns : A Result obj.
-        '''
-        #If a custom parser is present, use it
-        if self.custom_parser :
-            results = []
-            for values in self.custom_parser(source, url) :
-                results.append(Result(values, self.result_type, values.get(self.id), self.name))
-            return results
-
-        #Get the fields context using the parser
-        contexts    = []
-
-        if self.parsers and len(self.parsers):
-            for parser  in self.parsers :
-                result = parser.parse(source, url)
-                if isinstance(result, collections.Iterable):
-                    contexts.extend(result)
-                else :
-                    contexts.append(result)
-            contexts = self.adapter(contexts) if self.adapter else contexts
-        else :
-            contexts = [source]
-
-        results = []
-        for context in contexts :
-            values  = {field.name: field.parse(context, url) for field in self.fields}
-            results.append(Result(values, self.result_type, values.get(self.id), self.name))
-
-        return results
-
-class ContextParser():
-    '''
-        A field parser.
-        Args    :
-            parser_type : The type of the parser, json, xpath, regex or custom.
-            expression  : Expression as a json path, regex or xpath, in case of custom parser types, this should point to a function.
-            name        : The name or id of the parser, optional, can be used by the adapter in case of multiple parsers.
-            pick_first  : Picks the first element if the result of expression evaluation is an array.
-    '''
+    RECURSIVE_PARAMS = {}
 
     def __init__(
         self            ,
@@ -244,13 +209,14 @@ class ContextParser():
         self.pick_first     = pick_first
 
     @unit_test(TESTS.TestContextParser.test_parse, instance_creator= TESTS.TestContextParser.ic_test_parse)
-    @handle_exception(level= Level.ERROR)
+    @handle_exception(level= Level.ERROR, fall_back_value= '')
     def parse(self, source, url):
         '''
-            Parses the source using the expression.
+            Prases the container.
             Args    :
-                source  : The source to extract from.
-            Returns :   The extracted data
+                obj     , source: Source to parse.
+                string  , url   : Url to parse.
+            Returns : obj.
         '''
         result  = []
         source  = source if self.source_type == SourceType.SOURCE else url
@@ -267,23 +233,29 @@ class ContextParser():
         elif    self.parser_type    == ParserType.CUSTOM :
             result  = self.expression(source) if self.expression else source
 
-        elif self.parser_type    == ParserType.SOURCE :
+        elif self.parser_type       == ParserType.SOURCE :
             result  =   source
 
         return safe_getitem(result) if self.pick_first else result
 
-class Field():
+class Field(BaseCreatorFromDict):
     '''
         A data field.
         Instance    :
-            name            : Field name.
-            default_value   : Default value.
-            required        : Scraper will raise an exception if this field is missing.
-            max_missing     : Naximum allowed number of collected data with field missing, -1 to ignore.
-            on_max_missing  : What to do when max_missing is reached. a function.
-            parsers         : A list of field parsers to extract the field from a source.
-            adapter         : Adapts the results returned by the parsers.
+            string              , name              : Field name.
+            obj                 , default_value     : Default value.
+            boolean             , required          : Scraper will raise an exception if this field is missing.
+            int                 , max_missing       : Naximum allowed number of collected data with field missing, -1 to ignore.
+            callable(0)         , on_max_missing    : What to do when max_missing is reached. a function.
+            ContextParser list  , parsers           : A list of field parsers to extract the field from a source.
+            callable(1)         , adapter           : Adapts the results returned by the parsers.
+            int                 , found             : Number of found items.
+            int                 , missing           : Number of missing items.
     '''
+
+    RECURSIVE_PARAMS    = {
+        'parsers'    : ContextParser}
+
     def __init__(
         self                ,
         name                ,
@@ -292,7 +264,16 @@ class Field():
         on_max_missing      ,
         parsers             ,
         adapter             ):
-
+        '''
+            Args    :
+                string              , name              : Field name.
+                obj                 , default_value     : Default value.
+                boolean             , required          : Scraper will raise an exception if this field is missing.
+                int                 , max_missing       : Naximum allowed number of collected data with field missing, -1 to ignore.
+                callable(0)         , on_max_missing    : What to do when max_missing is reached. a function.
+                ContextParser list  , parsers           : A list of field parsers to extract the field from a source.
+                callable(1)         , adapter           : Adapts the results returned by the parsers.
+        '''
         self.name           = name
         self.required       = required
         self.max_missing    = max_missing
@@ -313,14 +294,14 @@ class Field():
             self.on_max_missing()
 
     @unit_test(TESTS.TestField.test_parse, instance_creator= TESTS.TestField.ic_test_parse)
-    @handle_exception()
+    @handle_exception(level= Level.ERROR, fall_back_value= '')
     def parse(self, source, url):
         '''
-            Parese the source using the field parsers.
+            Prases the container.
             Args    :
-                source  : The source to parse as html, json, plain text or any object.
-                url     : The url.
-            Returns :   The extracted data.
+                obj     , source: Source to parse.
+                string  , url   : Url to parse.
+            Returns : Result list.
         '''
         result  = {}
         for field_parser in self.parsers :
@@ -331,3 +312,94 @@ class Field():
         if not result:
             self.report_missing()
         return result
+
+class Container(BaseCreatorFromDict):
+    '''
+        A container for fields or other containers.
+        Instance    :
+            string          , name              : The name of container.
+            string          , id                : Field name used to identify and group different children data from multiple containers.
+            Field list      , fields            : A list of fields.
+            ResultType      , result_type       : Result type for the container.
+            ContextParser   , parsers           : Used to extract the context to which the fields parsers are applied.
+            callable(1)     , context_adapter   : Adapts the context result.
+            callable(1)     , results_adapter   : Adapts the parsing result.
+            callable(2)     , custom_parser     : Takes two arguments(source, url) and provides custom parsing behaviour, must return an list of dict.
+    '''
+
+    RECURSIVE_PARAMS    = {
+        'fields'    : Field,
+        'parsers'   : ContextParser}
+
+    def __init__(
+        self            ,
+        name            ,
+        id              ,
+        fields          ,
+        result_type     ,
+        parsers         ,
+        context_adapter ,
+        results_adapter ,
+        custom_parser   ):
+        '''
+            Args    :
+                string          , name              : The name of container.
+                string          , id                : Field name used to identify and group different children data from multiple containers.
+                Field list      , fields            : A list of fields.
+                ResultType      , result_type       : Result type for the container.
+                ContextParser   , parsers           : Used to extract the context to which the fields parsers are applied.
+                callable(1)     , context_adapter   : Adapts the context result.
+                callable(1)     , results_adapter   : Adapts the parsing result.
+                callable(2)     , custom_parser     : Takes two arguments(source, url) and provides custom parsing behaviour, must return an list of dict.
+        '''
+        self.name           = name
+        self.fields         = fields
+        self.id             = id
+        self.result_type    = result_type
+        self.parsers        = parsers
+        self.context_adapter= context_adapter
+        self.results_adapter= results_adapter
+        self.custom_parser  = custom_parser
+
+    @unit_test(TESTS.TestContainer.test_parse, instance_creator= TESTS.TestContainer.ic_test_parse)
+    @handle_exception()
+    def parse(self, source, url):
+        '''
+            Prases the container.
+            Args    :
+                obj     , source: Source to parse.
+                string  , url   : Url to parse.
+            Returns : Result list.
+        '''
+        #If a custom parser is present, use it
+        if self.custom_parser :
+            results = []
+            for values in self.custom_parser(source, url) :
+                results.append(Result(values, self.result_type, values.get(self.id), self.name))
+            return results
+
+        #Get the fields context using the parser
+        contexts    = []
+
+        #For each context parser, get the found contexts
+        if self.parsers and len(self.parsers):
+            for parser  in self.parsers :
+                result = parser.parse(source, url)
+                if type(result) == type([]):
+                    contexts.extend(result)
+                else :
+                    contexts.append(result)
+            #Apply the adapter
+            contexts = self.context_adapter(contexts) if self.context_adapter else contexts
+        else :
+            #If no context, use the source
+            contexts = [source]
+
+        results = []
+        #For each found context, extract fields values
+        for context in contexts :
+            values  = {field.name: field.parse(context, url) for field in self.fields}
+            results.append(Result(values, self.result_type, values.get(self.id), self.name))
+
+        #Apply the adapters and return the results
+        return self.results_adapter(results) if self.results_adapter else results

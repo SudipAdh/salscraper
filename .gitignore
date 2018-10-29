@@ -1,2 +1,4 @@
 *.pyc
 *.log
+/piescraper.egg-info/.*
+/dist/.*
