@@ -292,17 +292,6 @@ class Parser(BaseCreatorFromDict):
 
         return Result(joined_result, name= results[0].name, result_type= results[0].result_type, id= results[0].id)
 
-    def creator_from_dict(params):
-        '''
-            Creates an instance from a dict of params:
-            Args    :
-                params  : contains the parameters.
-            Returns :
-                An instance.
-        '''
-        params['rules']    = [ParsingRule.creator_from_dict(x) for x in params['rules']]
-        return Parser(** params)
-
 class Scraper(BaseCreatorFromDict):
     '''
         Base scraper class, contains standard methods and base scraping strcuture
@@ -497,14 +486,3 @@ class Scraper(BaseCreatorFromDict):
             Executed before stop.
         '''
         pass
-
-    def creator_from_dict(params):
-        '''
-            Creates an instance from a dict of params:
-            Args    :
-                params  : contains the parameters.
-            Returns :
-                An instance.
-        '''
-        params['parser']    = Parser.creator_from_dict(params['parser'])
-        return Scraper(** params)
