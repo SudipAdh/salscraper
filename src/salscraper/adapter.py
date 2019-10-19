@@ -56,7 +56,7 @@ class AdapterFunction   (EasyObj):
     #Json string to dict
     JSON            = lambda r, c, x: json.loads(x)
     #Dict path
-    OBJ_PATH        = lambda r, c, x, path= 0, return_last= False: g_path(x, path, return_last= return_last)
+    OBJ_PATH        = lambda r, c, x, path= 0, is_return_last= False: g_path(x, path, is_return_last= is_return_last)
     #Filter a list
     FILTER          = lambda r, c, x, key, value: [y for y in x if g_path(y, key)== value] 
     #Returns the absolute urls
