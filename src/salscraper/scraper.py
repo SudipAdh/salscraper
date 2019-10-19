@@ -2,142 +2,93 @@
 
     Implementation of the scraper object.
 '''
-from    .extraction         import  Bucket    , Field 
-from    .interface          import  Request
-from    .                   import  extraction
+from    .extraction         import  Bucket      , Field 
+from    .interface          import  Request     , Requests
 
 from    collections         import  OrderedDict
-from    saltools.common     import  EasyObj
-from    threading           import  Thread
+from    saltools.misc       import  g_path
 from    enum                import  Enum
 
-import  saltools.logging    as      stl
+from    .                   import  export          as  slsx
+from    .                   import  extraction      as  slse
 
-import  threading
+import  saltools.logging    as      sltl
+import  saltools.parallel   as      sltp
+
 import  queue
 
 class Signals(Enum):
     STOP        = 0
 
-class Scraper(EasyObj):
-    '''Scraper class.
-
-        Manages tasks execution and returns task result to callers.
-
-        Args:
-            interface       (interface.Interface        ): Web interface.
-            consume         (collections.abc.Callable   ): A function to consume the data returned by the parser.
-                consume(data) where data is list of dicts.
-            logger          (saltools.logging.logger    ): Logger.
-            start_requests  (list,Request   | list, str ): Starting urls.
-            n_threads       (int    : 1                 ): Number of threads to use.
-    '''
+class Scraper(sltp.NiceFactory):
     EasyObj_PARAMS  = OrderedDict((
-        ('interface'        , {}                        ),
-        ('consume'          , {}                        ),
-        ('logger'           , {}                        ),
-        ('start_requests'   , {}                        ),
+        ('start_requests'   , {
+            },),
         ('parser'           , {
-            'type'  : extraction.Parser                 }),
-        ('n_threads'        , {'default': 1}            )))
+            'type'  : slse.Parser   },),
+        ('interface'        , {
+            'default'   : Requests()    },),
+        ('data_exporter'    , {
+            'default'   : None          ,
+            'type'      : slsx.Exporter },),))
 
-    @stl.handle_exception()
-    def _on_init(self):
-        super().__init__(*args, **kwargs)
-        self.request_queue  = queue.Queue()
-        self.thread_queue   = queue.Queue()
+    def _on_stop    (
+        self    ,
+        factory ):
+        self.n_data = 0
+    def _on_start   (
+        self    ,
+        factory ):
+        pass
+    def _on_init    (
+        self    ):
+        for request in self.start_requests  :
+            self.start_tasks.append(
+                sltp.FactoryTask(
+                    target  = self.execute_request  ,
+                    args    = [request]             ))
+        self.n_data         = 0
+        self.on_stop        = self._on_stop
+        self.on_start       = self._on_start
 
-        self.alive          = False
-
-        for request in self.start_requests :
-            self.request_queue.put(request)
-        
-        for i in range(self.n_threads)  :
-            self.thread_queue.put('Thread {}'.format(i))
-    
-    @stl.handle_exception(log_start= True)
-    def start(self  ):
-        '''Starts  the scraper.
-
-            Starts the scraper.
-        '''
-        self.alive          = True
-        self.main_thread    = Thread(target= self.loop)
-
-        self.main_thread.start()
-    @stl.handle_exception(log_start= True)
-    def stop(self   ):
-        '''Stops the scraper.
-
-            Stops the scraper.
-        '''
-        self.request_queue.put(Signals.STOP)
-    @stl.handle_exception(log_start= True, log_end= True)
-    def loop(self   ):
-
-        while True:
-            #Get the new request
-            request    = self.request_queue.get()
-
-            #Check for abort
-            if request == Signals.STOP :
-                break
-            else                    :
-                #Get thread id
-                thread_id = self.thread_queue.get()
-                thread = Thread(target= self.execute_request, args= (request, ), name= thread_id)
-                thread.start()
-        
-        self.alive          = False
-
-    @stl.handle_exception(
-        level       = stl.Level.ERROR    ,
-        log_params  = ['request']       )
-    def execute_request(
+    @sltl.handle_exception  (
+        sltl.Level.ERROR            ,
+        is_log_start= True          ,
+        params_start= ['request']   ,
+        params_exc  = ['request']   )
+    def execute_request     (
         self                        ,
         request                     ,
-        immediate   = False         ,
-        log_params  = ['request']   ):
-        '''Executes a request.
-
-            Executes a request by a thread.
-
-            Args:
-                request     (Interface.Request  ): The request.
-                immediate   (bool               ): If `True`, data is returned instead of consumed
-            Returns:
-                list    : A list containing parsed data if immediate is `True` 
-        '''
+        immediate   = False         ):
         immediate_result    = {}
+        response                        = self.interface.execute_request(request)
+        data, requests, data_adapter    = self.parser.parse(response)
 
-        try :
-            response        = self.interface.execute_request(request)
-            data, requests  = self.parser.parse(response)
+        for request in requests:
+            self.tasks_queue.put(
+                sltp.FactoryTask(
+                    target  = self.execute_request  ,
+                    args    = [request]             ))
 
-            for request in requests:
-                self.request_queue.put(request)
-
-            for bucket_name, item in data.items():
-                data_dicts      = item['data']
-                adapter         = item['adapter']
-                processed_dicts = []
-                for data_dict in data_dicts :
-                    processed_dicts.append(self.process_data(
-                        response    , 
-                        data_dict   , 
-                        adapter     ))
-                data[bucket_name]   = processed_dicts
-            if      immediate   :
-                    return data 
-            else                :
-                self.consume(response, data)
-        finally:
-            self.thread_queue.put(threading.current_thread().name)
-            if      not self.request_queue.qsize()          and\
-                    self.thread_queue.qsize() == self.n_threads:
-                    self.request_queue.put(Signals.STOP)
-    @stl.handle_exception(level= stl.Level.ERROR)
-    def process_data(
+        for bucket_id, item in data.items():
+            data_dicts      = item['data']
+            adapter         = item['adapter']
+            processed_dicts = []
+            for data_dict in data_dicts :
+                processed_dicts.append(self.process_data(
+                    response    , 
+                    data_dict   , 
+                    adapter     ))
+            data[bucket_id]   = processed_dicts
+        if      data_adapter :
+            data = data_adapter.adapt(response, None, data)
+        if      immediate   :
+                return data 
+        elif    len(data)   :
+            if      self.data_exporter != None  :
+                self.data_exporter.export(data)
+            self.n_data +=1
+    def process_data        (
         self            ,
         response        ,
         data_dict       ,
@@ -155,22 +106,23 @@ class Scraper(EasyObj):
         '''
         for key, item in data_dict.items():
             if      isinstance(item, dict               ):
-                sub_dicts           = data_dict['data']
-                sub_adapter         = data_dict['adapter']
+                sub_dicts           = item['data']
+                sub_adapter         = item['adapter']
                 processed_sub_dicts = []
                 for sub_dict in sub_dicts   :
-                    processed_dicts.append(self.process_data(
+                    processed_sub_dicts.append(self.process_data(
                         response    , 
                         sub_dict    , 
                         sub_adapter ))
-                data_dict[key]  = processed_dicts
-            elif    isinstance(item, list  ) and len(item) and isinstance(item[0], Request):
+                data_dict[key]  = processed_sub_dicts
+            elif    isinstance(item, list  )            \
+                    and isinstance(g_path(item), Request):
                 data_dict[key]  = [self.execute_request(request_item, True) for request_item in item]
             else                                         :
                 data_dict[key]  = item
         
         if      data_adapter:
-            return data_adapter.adapt(None, None, [data_dict])[0]
+            return data_adapter.adapt(response, None, data_dict)
         else                :
             return data_dict
 

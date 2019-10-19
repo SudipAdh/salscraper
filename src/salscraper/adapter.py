@@ -2,47 +2,87 @@
 '''
 from    saltools.common     import  EasyObj
 from    collections         import  OrderedDict
-from    saltools.misc       import  g_safe          , join_string_array
+from    saltools.misc       import  g_path      , join_string_array
+from    urllib.parse        import  urlencode
 from    .                   import  interface
+from    lxml                import  etree
 
-import  saltools.logging    as      stl    
+import  saltools.logging    as      sltl    
+import  saltools.web        as      sltw
+
+import  json
+import  html
+import  re
 
 class AdapterFunction   (EasyObj):
     '''AdapterFunction
     '''
     EasyObj_PARAMS  = OrderedDict((
         ('method'   , {
-            'default': 'JOIN_STRINGS'   
-            'adapter': lambda x: x if isinstance(x, str) else       \
-                lambda self, r, c, l, **kwargs: x(r, c, l, **kwargs)}),
+            'default': 'JOIN_STRINGS'                                   ,
+            'adapter': lambda x: (x if isinstance(x, str) else          \
+                lambda self, r, c, l, **kwargs: x(r, c, l, **kwargs))}) ,
         ('kwargs'   , {
             'type'      : dict  ,     
-            'default'   : {}    ,})))
+            'default'   : {}    ,}),
+        ('is_list'  , {
+            'type'      : bool  ,
+            'parser'    : bool  ,
+            'default'   : False }),))
             
-    @stl.handle_exception(level= stl.Level.ERROR)
-    def adapt(self, r, c, l, **kwargs):
+    def adapt(self, r, c, x, **kwargs):
         if      isinstance (self.method, str)   :
             f = getattr(type(self), self.method)
         else                                    :
             f = self.method
         kwargs.update(self.kwargs)
-        return f(r, c, l, **kwargs)
+        if      self.is_list    :
+            return [f(r, c, y, **kwargs) for y in x]
+        else                    : 
+            return f(r, c, x, **kwargs)
+         
         
     ############################################################
     #################### Extractor
     ############################################################
-
-    #Gets the first value of a list
-    FIRST_VALUE = lambda r, c, l: g_safe(l, 0)
-    #Returns the absolute urls for each url in list l
-    ABSOLUTE_URL= lambda r, c, l: [r.host+ x if 'http' not in x else x for x in l] 
+    #Gets all urls in a string
+    REGEX           = lambda r, c, x, regex: re.compile(regex).findall(x)
+    #Gets the html source
+    SOURCE          = lambda r, c, x: etree.tostring(x, encoding='unicode')
+    #Removes all line breaks
+    ONE_LINE        = lambda r, c, x, p = ' ': x.replace('\n', p)
+    #Put in a list
+    LIST            = lambda r, c, x: [x]
+    #Json string to dict
+    JSON            = lambda r, c, x: json.loads(x)
+    #Dict path
+    OBJ_PATH        = lambda r, c, x, path= 0, return_last= False: g_path(x, path, return_last= return_last)
+    #Filter a list
+    FILTER          = lambda r, c, x, key, value: [y for y in x if g_path(y, key)== value] 
+    #Returns the absolute urls
+    ABSOLUTE_URL    = lambda r, c, x: r.host+ x if 'http' not in x else x 
     #Join a list of strings
-    JOIN_STRINGS= lambda r, c, l, d= ' ': join_string_array(l, d)
+    JOIN_STRINGS    = lambda r, c, x, d= ' ': join_string_array(x, d)
+    #Slice any list
+    SLICE           = lambda r, c, x, start=0, end= -1, step=1 : x[start:end:step]
+    #Format a string
+    FORMAT_ARGS     = lambda r, c, x, s: s.format(*x) 
+    FORMAT_KWARGS   = lambda r, c, x, s: s.format(**x) 
+    #Unescape html
+    UNESCAPE_HTML   = lambda r, c, x    : html.unescape(x) 
+    #Dict            
+    DICT            = lambda r, c, x, keys: {
+        g_path(keys, i): g_path(x, i) for i in range(len(keys))}
 
     ############################################################
     #################### Data
     ############################################################
-    def FLATTEN(r, c, data, keys= {}):
+    def FLATTEN (
+        r                   , 
+        c                   , 
+        bucket              , 
+        keys                , 
+        is_full_name= False ):
         '''Flaten nested arrays or dicts.
 
             Rises all keys elements to the top level:
@@ -54,55 +94,88 @@ class AdapterFunction   (EasyObj):
                 data(list, dict         ): Data.
                 keys(list, str          ): The keys to flatten.
         ''' 
-        def g_sub_buckets_values(sub_buckets):
+        def g_buckets_values(buckets):
             values  = {}
-            if      len(sub_buckets):
-                data_bucket = list(sub_buckets[0].values())[0][0]
-                values      = {key:value for key, value in data_bucket.items()}
+            for b_name, s_bucket in buckets.items() :
+                for f_name, field in s_bucket[0].items() :
+                    if      is_full_name   :
+                        f_name  = b_name+ f_name
+                    values[f_name]   = field
             return values 
 
-        if not len(data):
-            return
-        
-        #Flatten all
-        if not len(keys):
-            keys = [key for key in data[0]     if  \
-                isinstance(data[0][key], list) and \
-                len(data[0][key])              and \
-                isinstance(data[0][key][0], dict)  ]
-
-        buckets     = data
-        for bucket in buckets :
-            for key in keys :
-                values  = g_sub_buckets_values(bucket[key])
+        for key in keys :
+            if len(bucket[key]) :
+                values  = g_buckets_values(bucket[key][0])
                 del bucket[key]
                 bucket.update(values)
-        return buckets
+        return bucket
+    def MULTIPLY(
+        r               , 
+        c               , 
+        buckets         , 
+        keys            ,
+        name_index  = 0 ):
+        b_1 = buckets[keys[0]]   
+        b_2 = buckets[keys[1]]
+
+        new_list    = []
+        for e_1 in b_1  :
+            for e_2  in b_2  :
+                e_1 = e_1.copy()
+                e_2 = e_2.copy()
+                e_1.update(e_2) 
+                new_list.append(e_1)
+        return {
+            keys[name_index]    : new_list
+            }
+
 
     ############################################################
     #################### Requests
     ############################################################
-    def URL_GET(r, c, urls, params= {}):
-        '''Simple get request.
+    def GET         (
+        response        , 
+        context         , 
+        args            ,
+        url     = None  , 
+        params  = {}    ):
+        '''Get request.
             
             Generates a simple get request.
 
             Args:
                 response    (interface.Response ): The response object.
                 context     (Object             ): Context if there is.
-                url         (str                ): The job url.
-                params      (dict               ): The default params.
-                request     (interface.Request  ): The preconstructed request object. 
+                args        (str                ): The job extracted args.
+                params      (dict               ): The default params. 
             
             Returns:
                 interface.Request   : The genrated request. 
         '''
-        return [ interface.Request(
-                url                 ,
-                interface.Method.GET,
-                params              ,
-                None                ,
-                r.session           ) for url in urls]
+        if      not isinstance(args, list)  :
+            args    = [args]
+        if      not url                     :
+            return [interface.Request(arg, params= params) for arg in args]
+        else                                :
+            requests    = []
+            for arg in args :
+                arg_params  = params.copy()
+                arg_params.update(arg)
+                requests.append(
+                    interface.Request(url, params= arg_params))
+            return requests
+    def NEXT_PAGE   (
+        response            , 
+        context             , 
+        args                ,
+        page_param  = 'page'):
+        current_url = response.request_url
+        page_number = int(sltw.g_url_param(current_url, page_param))
+        
+        return  [current_url.replace(
+            urlencode({page_param   : page_number   })  , 
+            urlencode({page_param   : page_number+1 })  )]
+
 class Adapter           (EasyObj):
     '''Data adapter, processes data using one or many adapters
     '''
@@ -113,15 +186,16 @@ class Adapter           (EasyObj):
     
     def _on_init(self):
         self.functions  = self.functions if isinstance(self.functions, list) else [self.functions]
- 
-    @stl.handle_exception(level= stl.Level.ERROR)
-    def adapt(self, r, c, l, **kwargs):
+    
+    @sltl.handle_exception(
+        sltl.Level.ERROR    )
+    def adapt(self, r, c, x, **kwargs):
         '''Uses the functions s a pipline to adapt the given value l.
         '''
 
         for function in self.functions:
-            l = function.adapt(r, c, l, **kwargs)
-        return l
+            x = function.adapt(r, c, x, **kwargs)
+        return x
 
 
 

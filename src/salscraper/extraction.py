@@ -2,10 +2,11 @@
 '''
 from    saltools.common     import  EasyObj         , MY_CLASS  
 from    .adapter            import  Adapter
-from    saltools.web        import  find_xpath
-from    lxml.html           import  fromstring
+from    saltools.web        import  g_xpath
+from    saltools.misc       import  g_path
 from    decimal             import  Decimal
 from    collections         import  OrderedDict
+from    collections.abc     import  Iterable
 from    .                   import  interface
 from    enum                import  Enum
 
@@ -30,7 +31,7 @@ class ExtractorType     (Enum):
     '''
     XPATH       = 0
     REGEX       = 1
-    JSON_PATH   = 2
+    OBJ_PATH    = 2
     CUSTOM      = 3
     EQUALS      = 4
 class SourceType        (Enum):
@@ -44,17 +45,17 @@ class SourceType        (Enum):
     HTML            = 2
     JSON            = 3
     TEXT            = 4
-class ParserResultType  (Enum):
-    REQUEST             = 0
-    DATA                = 1
+    CONTENT         = 5
+    CONTEXT         = 6
 
 #Maps each source type to a lambda that generates the correct object.
 SOURCE_TYPE_OBJECT_MAP  = {
     SourceType.REQUEST_URL  : lambda response: response.request_url         ,
     SourceType.RESPONSE_URL : lambda response: response.response_url        ,
-    SourceType.HTML         : lambda response: fromstring(response.content) ,
-    SourceType.JSON         : lambda response: response.json()              ,
-    SourceType.TEXT         : lambda response: response.content             }
+    SourceType.HTML         : lambda response: response.html_tree           ,
+    SourceType.JSON         : lambda response: response.json                ,
+    SourceType.TEXT         : lambda response: response.text                ,
+    SourceType.CONTENT      : lambda response: response.content             ,}
 #Maps each field type to its predefined type
 FIELD_TYPE_OBJECT_MAP   = {
     FieldType.INTEGER   : int       ,
@@ -83,7 +84,7 @@ class Extractor     (EasyObj):
             'default'   : ExtractorType.XPATH       , 
             'type'      : ExtractorType             }),
         ('source_type'  , {
-            'default'   : SourceType.HTML           , 
+            'default'   : SourceType.CONTEXT        , 
             'type'      : SourceType                }),
         ('adapter'      , {
             'type'      : Adapter       ,
@@ -91,8 +92,13 @@ class Extractor     (EasyObj):
         ('expression'   , {}                        )))
 
     @stl.handle_exception(
-        level       = stl.Level.ERROR            , 
-        log_params  = ['response', 'context']   )
+        level       = stl.Level.ERROR   , 
+        params_exc  = [
+            'self.type'             ,
+            'self.source_type'      ,
+            'self.adapter.functions',
+            'self.expression'       ,
+            'response.request_url'  ,])
     def extract(
         self            ,
         response        ,
@@ -106,20 +112,21 @@ class Extractor     (EasyObj):
                 context     (Object             ): If provided, used instead of parsing response content.
             Returns:
                 list   : The list  of data collected.
-        '''
+        '''  
 
-        source  = context if context != None else SOURCE_TYPE_OBJECT_MAP[self.source_type](response)
+        source  =   context if self.source_type == self.source_type.CONTEXT \
+                    else SOURCE_TYPE_OBJECT_MAP[self.source_type](response)
         result  = None
         if      self.type == ExtractorType.XPATH     :
-            result  = find_xpath(source, self.expression)
+            result  = g_xpath(source, self.expression)
         elif    self.type == ExtractorType.REGEX     :
             result  = re.compile(self.expression).findall(source)
-        elif    self.type == ExtractorType.JSON_PATH :
-            result  = saltools.dict_path(source, path)
+        elif    self.type == ExtractorType.OBJ_PATH  :
+            result  = g_path(source, self.expression, return_last= False)
         elif    self.type == ExtractorType.CUSTOM    :
-            result  = self.expression(source)
+            result  = self.expression(source)   if self.expression != None else  source
         elif    self.type == ExtractorType.EQUALS    :
-            result  = source  if source == expression else None
+            result  = source  if source == self.expression else None
         
         if self.adapter:
             return self.adapter.adapt(response, context, result)
@@ -131,22 +138,28 @@ class ExtractorBase (EasyObj):
         Implements simple extraction logic using `Extractor`.
 
         Args:
-            name        (str                        ): A name.
-            extractor   (Extractor                  ): A single `Extractor` or a list.
-            adapter     (collections.abc.Callable   ): In case of many extractors, the adapter is used to combine 
-                the multiple values returned by the extractors into one, args for the adapter are the source, response 
-                and a list of extracted values, arguments are: response, context, value/s.
+            id_         (str                                ): An id.
+            extractor   (Extractor                          ): A single `Extractor` or a list.
+            adapter     (collections.abc.Callable           ): In case of many extractors, the adapter is used to 
+                combine the multiple values returned by the extractors into one, args for the adapter are the source,
+                response and a list of extracted values, arguments are: response, context, value/s.
+            is_pipeline (bool                       :False  ): If `True`, the list of extractors are applied in 
+                sequence to the source.
     '''
     EasyObj_PARAMS  = OrderedDict((
-        ('name'     , {}                             ),
-        ('extractor', {
+        ('id_'              , {
+            'default'   : 'N/A'}    ),
+        ('extractor'        , {
             'type'   : Extractor                    ,
             'default': None                         }),
-        ('adapter'  , {
+        ('adapter'          , {
             'type'      : Adapter   ,
-            'default'   : None      })))
+            'default'   : None      }),
+        ('is_pipeline'      , {
+            'type'      : bool      ,
+            'default'   : False     ,
+            'parser'    : bool      }),))
     
-    @stl.handle_exception(level= stl.Level.ERROR)
     def _extract(
         self    ,
         response,
@@ -160,12 +173,18 @@ class ExtractorBase (EasyObj):
             Returns:
                 object  : The parsed value of the field.
         '''
+        if      self.extractor == None              :
+            return 
         if      isinstance(self.extractor, list)    :
-            value  = self.adapter.adapt(response, context, [ 
-                x.extract(response, context) for x in self.extractor])
+            if      self.is_pipeline    :
+                for extractor in self.extractor    :
+                    context     = extractor.extract(response, context)
+                value   = context
+            else                        :
+                value  = [ 
+                    x.extract(response, context) for x in self.extractor]
         else    :
             value  = self.extractor.extract(response, context)
-        
         return self.adapter.adapt(response, context, value) if self.adapter else value
     def extract(
         self    ,
@@ -193,14 +212,21 @@ class Field         (ExtractorBase):
     EasyObj_PARAMS  = OrderedDict((
         ('type'     , {
             'type'   : FieldType            ,
-            'default': FieldType.STRING     }),))
+            'default': FieldType.STRING     }),
+        ('value'    , {
+            'default': None     }),))
     
-    @stl.handle_exception(level= stl.Level.ERROR)
     def extract(
         self    ,
         response,
         context ):
-        return FIELD_TYPE_OBJECT_MAP[self.type](self._extract(response, context))
+        if self.value   :
+            return self.value
+        value   = self._extract(response, context)
+        try             :
+            return FIELD_TYPE_OBJECT_MAP[self.type](value)
+        except          :
+            return value
 class Job           (ExtractorBase):
     '''Job to be performed by the scraper.
 
@@ -212,23 +238,19 @@ class Job           (ExtractorBase):
                 extracted values (`list`, `object`), returns a `list` of `Interface.Request`.
     '''
     EasyObj_PARAMS  = OrderedDict((
-        ('method'           , {
-            'type'   : interface.Method     ,
-            'default': interface.Method.GET }),
         ('request_adapter'  , {
             'type'      : Adapter           ,
-            'default'   : Adapter('URL_GET')})))
+            'default'   : Adapter('GET')    },),))
 
-    @stl.handle_exception(level= stl.Level.ERROR)
     def extract(
-        self    ,
-        response,
-        context ):
-        urls    = self._extract(response, context)
+        self            ,
+        response        ,
+        context = None  ):
+        args        = self._extract(response, context)
         return self.request_adapter.adapt(
             response    , 
             context     , 
-            urls        )
+            args        )
 class Bucket        (ExtractorBase):
     '''Data collection bucket.
 
@@ -241,40 +263,46 @@ class Bucket        (ExtractorBase):
             data_adapter    (Adapter    ): Bucket adapter.
     '''
     EasyObj_PARAMS  = OrderedDict((
-        ('buckets'      , {'type': MY_CLASS , 'default': [] }),
-        ('fields'       , {'type': Field    , 'default': [] }),
-        ('jobs'         , {'type': Job      , 'default': [] }),
-        ('data_adapter' , {
+        ('buckets'          , {'type': MY_CLASS , 'default': [] }),
+        ('fields'           , {'type': Field    , 'default': [] }),
+        ('jobs'             , {'type': Job      , 'default': [] }),
+        ('is_empty_on_None' , {
+            'type'      : bool      ,
+            'default'   : False     ,
+            'parser'    : bool      }),
+        ('data_adapter'     , {
             'type'      : Adapter   ,
             'default'   : None      })))
 
-    @stl.handle_exception(level= stl.Level.ERROR)
     def extract(
         self            ,
         response        ,
         context = None  ):
 
         data_dicts      = []
-        if      self.extractor  :
+        if      self.extractor  != None :
             bucket_contexts = self._extract(response, context)
-        else                    :
+            if      self.is_empty_on_None   :
+                return []
+        else                            :
             bucket_contexts = [None]
+        if      not isinstance(bucket_contexts, list):
+            bucket_contexts  = [bucket_contexts]
             
         for bucket_context in bucket_contexts   :
             context_dict    = {}
             
             for field in self.fields    :
-                context_dict[field.name]   = field.extract(response, bucket_context)
+                context_dict[field.id_]   = field.extract(response, bucket_context)
             for bucket in self.buckets  :
-                context_dict[bucket.name]  = {
+                context_dict[bucket.id_]  = {
                     'data'      : bucket.extract(response, bucket_context)  ,
                     'adapter'   : bucket.adapter                            }
             
             for job in self.jobs    :
-                context_dict[job.name]     = job.extract(response, bucket_context)
+                context_dict[job.id_]     = job.extract(response, bucket_context)
             
             data_dicts.append(context_dict)
-            
         return data_dicts
 
 class ParsingRule   (EasyObj):
@@ -289,12 +317,16 @@ class ParsingRule   (EasyObj):
     '''
     EasyObj_PARAMS  = OrderedDict((
         ('source_selector'  , {'type': Extractor    }),
-        ('buckets'          , {'type': Bucket       }),
+        ('buckets'          , {
+            'type'      : Bucket        ,
+            'default'   : []            }),
         ('jobs'             , {
-            'type'      : Job           ,
-            'default'   : []            }           )))
+            'type'      : Job   ,
+            'default'   : []    }),
+        ('data_adapter'     , {
+            'type'      : Adapter   ,
+            'default'   : None      }),))
 
-    @stl.handle_exception(level= stl.Level.ERROR)
     def check(
         self        ,
         source      ):
@@ -328,10 +360,6 @@ class Parser        (EasyObj):
         ('rules'            , {'type'   : ParsingRule   }),
         ('is_unique_rule'   , {'default': True          })))
 
-    @stl.handle_exception(
-        level           = stl.Level.ERROR, 
-        log_params      = ['response']  , 
-        fall_back_value = []            )
     def parse(
         self    ,
         response):
@@ -352,7 +380,7 @@ class Parser        (EasyObj):
         for rule in self.rules:
             if      rule.check(response):
                 for b in rule.buckets:
-                    data[b.name]    = {
+                    data[b.id_]    = {
                         'data'      : b.extract(response)   ,
                         'adapter'   : b.data_adapter        }
                 for j in rule.jobs  :
@@ -368,5 +396,5 @@ class Parser        (EasyObj):
         
         assert rule_found, 'No rule is found for the given response.'
         
-        return data, requests
+        return data, requests, rule.data_adapter
                 
