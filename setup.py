@@ -8,12 +8,12 @@ REQS        = [line.strip() for line in open(join(BASE_DIR, 'requirements.txt'))
 
 setup(
     name                            = 'salscraper'                                  ,
-    version                         = '0.0.3'                                       ,
+    version                         = '0.1.0'                                       ,
     description                     = 'A scarping tool'                             ,
     long_description                = README                                        ,
     long_description_content_type   = 'text/markdown'                               ,
     classifiers                     = [
-          'Development Status :: 3 - Alpha'                                         ,
+          'Development Status :: 4 - Beta'                                          ,
           'Intended Audience :: Developers'                                         ,
           'License :: OSI Approved :: MIT License'                                  ,
           'Operating System :: Microsoft :: Windows'                                ,
