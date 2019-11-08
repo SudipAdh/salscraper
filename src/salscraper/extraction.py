@@ -122,7 +122,7 @@ class Extractor     (EasyObj):
         elif    self.type == ExtractorType.REGEX     :
             result  = re.compile(self.expression).findall(source)
         elif    self.type == ExtractorType.OBJ_PATH  :
-            result  = g_path(source, self.expression, return_last= False)
+            result  = g_path(source, self.expression, is_return_last= False)
         elif    self.type == ExtractorType.CUSTOM    :
             result  = self.expression(source)   if self.expression != None else  source
         elif    self.type == ExtractorType.EQUALS    :
