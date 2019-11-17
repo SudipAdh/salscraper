@@ -114,7 +114,7 @@ class Extractor     (EasyObj):
                 list   : The list  of data collected.
         '''  
 
-        source  =   context if self.source_type == self.source_type.CONTEXT \
+        source  =   context if self.source_type == SourceType.CONTEXT   \
                     else SOURCE_TYPE_OBJECT_MAP[self.source_type](response)
         result  = None
         if      self.type == ExtractorType.XPATH     :
@@ -282,7 +282,8 @@ class Bucket        (ExtractorBase):
         data_dicts      = []
         if      self.extractor  != None :
             bucket_contexts = self._extract(response, context)
-            if      self.is_empty_on_None   :
+            if      self.is_empty_on_None       \
+                    and bucket_contexts == None :
                 return []
         else                            :
             bucket_contexts = [None]
