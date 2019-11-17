@@ -1,1 +1,3 @@
+- Add parse.parse
+- Better adapter logs
 - request caching
