@@ -60,7 +60,7 @@ class Project(EasyObj):
             default_logger.id_  = scraper_name
             return default_logger
         
-        if      path_py != None     :
+        if      path_py   != None   :
             spec    = importlib.util.spec_from_file_location(scraper_name, path_py)
             module  = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
@@ -71,10 +71,10 @@ class Project(EasyObj):
             if      json_dict.get('logger') :
                 logger_dict     = json_dict['logger']
                 scraper.logger  = getattr(sltl, logger['type'])(**logger['kwargs'])
-        else                :
+        else                        :
             return 
         
-        if      scraper.logger  == None         :
+        if      scraper.logger        == None   :
             scraper.logger  = g_default_logger(scraper_name, settings)
         if      scraper.data_exporter == None   :
             scraper.data_exporter   = slsx.Exporter(**settings['data_exporter'])

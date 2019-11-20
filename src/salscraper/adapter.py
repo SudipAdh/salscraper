@@ -4,7 +4,7 @@ from    saltools.common     import  EasyObj
 from    collections         import  OrderedDict
 from    saltools.misc       import  g_path      , join_string_array
 from    urllib.parse        import  urlencode
-from    .                   import  interface
+from    .                   import  interface   , settings
 from    lxml                import  etree
 
 import  saltools.logging    as      sltl    
@@ -27,7 +27,6 @@ class AdapterFunction   (EasyObj):
             'default'   : {}    ,}),
         ('is_list'  , {
             'type'      : bool  ,
-            'parser'    : bool  ,
             'default'   : False }),))
             
     def adapt(self, r, c, x, **kwargs):
@@ -181,16 +180,18 @@ class Adapter           (EasyObj):
     '''
     EasyObj_PARAMS  = OrderedDict((
         ('functions'    , {
-            'type'      : AdapterFunction                   ,
-            'default'   : AdapterFunction('JOIN_STRINGS')   }),))
-    
-    def _on_init(self):
-        self.functions  = self.functions if isinstance(self.functions, list) else [self.functions]
+            'type'      : [AdapterFunction] ,
+            'default'   : ['JOIN_STRINGS']  }),))
     
     @sltl.handle_exception(
         sltl.Level.ERROR    )
-    def adapt(self, r, c, x, **kwargs):
-        '''Uses the functions s a pipline to adapt the given value l.
+    def adapt   (
+        self    , 
+        r       , 
+        c       , 
+        x       , 
+        **kwargs):
+        '''Uses the functions in sequence to adapt the value of x.
         '''
 
         for function in self.functions:

@@ -64,7 +64,8 @@ FIELD_TYPE_OBJECT_MAP   = {
     FieldType.STRING    : str       ,
     FieldType.BOOL      : bool      }
 
-class Extractor     (EasyObj):
+class Extractor     (
+    EasyObj ):
     '''Content extractor.
 
         Does content extraction for all content types found ExtractorType.
@@ -81,11 +82,11 @@ class Extractor     (EasyObj):
 
     EasyObj_PARAMS  = OrderedDict((
         ('type'         , {
-            'default'   : ExtractorType.XPATH       , 
-            'type'      : ExtractorType             }),
+            'default'   : 'XPATH'       , 
+            'type'      : ExtractorType }),
         ('source_type'  , {
-            'default'   : SourceType.CONTEXT        , 
-            'type'      : SourceType                }),
+            'default'   : 'CONTEXT'     , 
+            'type'      : SourceType    }),
         ('adapter'      , {
             'type'      : Adapter       ,
             'default'   : None          }),
@@ -132,7 +133,8 @@ class Extractor     (EasyObj):
             return self.adapter.adapt(response, context, result)
         else :
             return result
-class ExtractorBase (EasyObj):
+class ExtractorBase (
+    EasyObj ):
     '''Base for all classes that use `Extrator`
 
         Implements simple extraction logic using `Extractor`.
@@ -148,19 +150,18 @@ class ExtractorBase (EasyObj):
     '''
     EasyObj_PARAMS  = OrderedDict((
         ('id_'              , {
-            'default'   : 'N/A'}    ),
+            'default'   : 'N/A' }),
         ('extractor'        , {
-            'type'   : Extractor                    ,
-            'default': None                         }),
+            'type'   : [Extractor]  ,
+            'default': None         }),
         ('adapter'          , {
             'type'      : Adapter   ,
             'default'   : None      }),
         ('is_pipeline'      , {
             'type'      : bool      ,
-            'default'   : False     ,
-            'parser'    : bool      }),))
+            'default'   : False     }),))
     
-    def _extract(
+    def _extract    (
         self    ,
         response,
         context ):
@@ -173,20 +174,19 @@ class ExtractorBase (EasyObj):
             Returns:
                 object  : The parsed value of the field.
         '''
-        if      self.extractor == None              :
+        if      self.extractor == None  :
             return 
-        if      isinstance(self.extractor, list)    :
-            if      self.is_pipeline    :
-                for extractor in self.extractor    :
-                    context     = extractor.extract(response, context)
-                value   = context
-            else                        :
-                value  = [ 
-                    x.extract(response, context) for x in self.extractor]
-        else    :
-            value  = self.extractor.extract(response, context)
+        if      self.is_pipeline        :
+            for extractor in self.extractor    :
+                context     = extractor.extract(response, context)
+            value   = context
+        else                            :
+            value   = [ 
+                x.extract(response, context) for x in self.extractor]
+            if      len(self.extractor) == 1    :
+                value   = value[0]
         return self.adapter.adapt(response, context, value) if self.adapter else value
-    def extract(
+    def extract     (
         self    ,
         response,
         context ):
@@ -211,8 +211,8 @@ class Field         (ExtractorBase):
     '''
     EasyObj_PARAMS  = OrderedDict((
         ('type'     , {
-            'type'   : FieldType            ,
-            'default': FieldType.STRING     }),
+            'type'   : FieldType    ,
+            'default': 'STRING'     }),
         ('value'    , {
             'default': None     }),))
     
@@ -239,8 +239,8 @@ class Job           (ExtractorBase):
     '''
     EasyObj_PARAMS  = OrderedDict((
         ('request_adapter'  , {
-            'type'      : Adapter           ,
-            'default'   : Adapter('GET')    },),))
+            'type'      : Adapter   ,
+            'default'   : 'GET'     }),))
 
     def extract(
         self            ,
@@ -263,16 +263,21 @@ class Bucket        (ExtractorBase):
             data_adapter    (Adapter    ): Bucket adapter.
     '''
     EasyObj_PARAMS  = OrderedDict((
-        ('buckets'          , {'type': MY_CLASS , 'default': [] }),
-        ('fields'           , {'type': Field    , 'default': [] }),
-        ('jobs'             , {'type': Job      , 'default': [] }),
+        ('buckets'          , {
+            'type'      : [MY_CLASS]    , 
+            'default'   : []            }),
+        ('fields'           , {
+            'type'      : [Field]   , 
+            'default'   : []        }),
+        ('jobs'             , {
+            'type'      : [Job] , 
+            'default'   : []    }),
         ('is_empty_on_None' , {
             'type'      : bool      ,
-            'default'   : False     ,
-            'parser'    : bool      }),
+            'default'   : False     }),
         ('data_adapter'     , {
             'type'      : Adapter   ,
-            'default'   : None      })))
+            'default'   : None      }),))
 
     def extract(
         self            ,
@@ -317,12 +322,13 @@ class ParsingRule   (EasyObj):
             jobs            (list, Job      ): A list of jobs to collect new urls, jobs.
     '''
     EasyObj_PARAMS  = OrderedDict((
-        ('source_selector'  , {'type': Extractor    }),
+        ('source_selector'  , {
+            'type': Extractor    }),
         ('buckets'          , {
-            'type'      : Bucket        ,
-            'default'   : []            }),
+            'type'      : [Bucket]  ,
+            'default'   : []        }),
         ('jobs'             , {
-            'type'      : Job   ,
+            'type'      : [Job] ,
             'default'   : []    }),
         ('data_adapter'     , {
             'type'      : Adapter   ,
@@ -358,8 +364,10 @@ class Parser        (EasyObj):
                 no further rules are tested against it. 
     '''
     EasyObj_PARAMS  = OrderedDict((
-        ('rules'            , {'type'   : ParsingRule   }),
-        ('is_unique_rule'   , {'default': True          })))
+        ('rules'            , {
+            'type'   : [ParsingRule]    }),
+        ('is_unique_rule'   , {
+            'default': True             }),))
 
     def parse(
         self    ,

@@ -42,11 +42,14 @@ class Scraper(sltp.NiceFactory):
         pass
     def _on_init    (
         self    ):
+        self.is_no_tasks_stop   = True
+
         for request in self.start_requests  :
             self.start_tasks.append(
                 sltp.FactoryTask(
                     target  = self.execute_request  ,
                     args    = [request]             ))
+
         self.n_data         = 0
         self.on_stop        = self._on_stop
         self.on_start       = self._on_start
