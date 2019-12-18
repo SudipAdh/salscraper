@@ -13,6 +13,8 @@ import  saltools.misc       as      sltm
 
 import  re
 
+FIELD_NONE  = 'Just a string to represent a null value'
+
 class FieldType (
     Enum    ):
     '''Field type.
@@ -87,7 +89,7 @@ class Field         (
             'type'   : FieldType    ,
             'default': 'STRING'     }),
         ('value'            , {
-            'default': None     }),
+            'default': FIELD_NONE   }),
         ('is_return_value'  , {
             'type'      : bool  ,
             'default'   : False }),
@@ -154,7 +156,7 @@ class Field         (
         r_executer  = None  ,
         parser      = None  ,
         r_list      = None  ):
-        if self.value != None   :
+        if self.value != FIELD_NONE :
             return self.value
 
         value   = self._extract(r, c)
