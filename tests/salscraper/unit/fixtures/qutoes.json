@@ -1,0 +1,81 @@
+{
+    "scraper": {
+        "max_tasks": 2,
+        "start_requests": [
+            "http://quotes.toscrape.com/page/1/"
+        ],
+        "parser": {
+            "rules": [
+                {
+                    "extractor": "REGEX,RESPONSE_URL:.*/page/.*",
+                    "buckets": [
+                        {
+                            "id_": "quote",
+                            "extractor": "x://div[@class=\"quote\"]",
+                            "fields": [
+                                {
+                                    "id_": "author",
+                                    "extractor": "x:.//small[@class=\"author\"]//text()-->_"
+                                },
+                                {
+                                    "id_": "quote",
+                                    "extractor": "x:.//span[@class=\"text\"]//text()-->_"
+                                },
+                                {
+                                    "id_": "about",
+                                    "type": "REQUEST",
+                                    "extractor": "x:./span/a/@href-->p-->a-->@"
+                                },
+                                {
+                                    "id_": "tags",
+                                    "extractor" : "x:.//div[@class=\"tags\"]",
+                                    "fields":[
+                                        {
+                                            "id_": "tag_1",
+                                            "extractor": "x:.//a/text()-->p"
+                                        },
+                                        {
+                                            "id_": "tag_2",
+                                            "extractor": "x:.//a/text()-->p:1"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "requests": [
+                        {
+                            "extractor": "NEXT_PAGE-->@"
+                        }
+                    ]
+                },
+                {
+                    "extractor": "r,s:.*/author/.*",
+                    "buckets":[
+                        {
+                            "id_":"about",
+                            "fields": [
+                                {
+                                    "id_":"name",
+                                    "extractor": "x://h3/text()-->p-->st"
+                                },
+                                {
+                                    "id_":"birth_date",
+                                    "extractor": "x://span[@class=\"author-born-date\"]/text()-->p-->st"
+                                },
+                                {
+                                    "id_":"birth_place",
+                                    "extractor": "x://span[@class=\"author-born-location\"]/text()-->p-->/:3-->st"
+                                },
+                                {
+                                    "id_":"description",
+                                    "extractor": "x://div[@class=\"author-description\"]/text()-->p-->st"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}
