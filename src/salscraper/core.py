@@ -46,6 +46,20 @@ class ContainerBase (
             'type'      : str   ,
             'default'   : 'N/A' }),))
     
+    def _g_noxt_next    (
+        cls         ,
+        requests    ):
+        requests_noxt   = []
+        requests_next   = []
+
+        for request in requests :
+            methods = [func.method for coll in request.extractor.collections for func in coll.functions]
+            if      slse.EXTRACTORS.NEXT_PAGE in methods    :
+                requests_next.append(request)
+            else                                            :
+                requests_noxt.append(request)
+        return requests_noxt, requests_next
+
     def _extract    (
         self        ,
         r           ,
@@ -230,7 +244,7 @@ class Bucket        (
         r_list      = None  ):
         contexts    = self._extract(r, c) if self.extractor != None else [None]
         if      contexts == None    :
-            contexts    = [None]
+            contexts    = [c]
         data        = []
         for context in contexts :
             if      self.is_skip_None and context == None   :
@@ -250,15 +264,18 @@ class Bucket        (
 class Rule          (
     ContainerBase   ):
     EasyObj_PARAMS  = OrderedDict((
-        ('buckets'      , {
+        ('buckets'          , {
             'type'      : [Bucket]  ,
             'default'   : []        }),
-        ('requests'     , {
+        ('requests'         , {
             'type'      : [Field]   ,
             'default'   : []        }),
-        ('data_adapter' , {
+        ('data_adapter'     , {
             'type'      : slse.Extractor    ,
-            'default'   : None              }),))
+            'default'   : None              }),
+        ('is_stop_empty'    , {
+            'type'      : bool  ,
+            'default'   : True  }),))
     
     def _on_init    (
         self    ):
@@ -282,14 +299,20 @@ class Rule          (
                 r_executer  ,
                 parser      ,
                 r_list      ) for b in self.buckets }
+        
+        requests_noxt, requests_next = self._g_noxt_next(self.requests)
         requests    = []
-        for request in self.requests:
+        for request in requests_noxt+ requests_next :
+            if      request in requests_next    and \
+                    self.is_stop_empty          and \
+                    len(requests) == 0              :
+                    break
             x           = request.extract(r, c)
             if      isinstance(x, list) :
                 requests.extend(x)
             else                        :
                 requests.append(x)
-        
+            
         if      self.data_adapter != None   :
             data = self.data_adapter.extract(r, None, data)
         return data, requests
