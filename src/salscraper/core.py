@@ -57,7 +57,10 @@ class ContainerBase (
             Returns:
                 object  : The parsed value of the field.
         '''
-        return self.extractor.extract(r, c, None)
+        if      self.extractor != None  :
+            return self.extractor.extract(r, c, None)
+        else                            :
+            return None
     
     def extract     (
         self                ,
@@ -151,7 +154,7 @@ class Field         (
         r_executer  = None  ,
         parser      = None  ,
         r_list      = None  ):
-        if self.value   :
+        if self.value != None   :
             return self.value
 
         value   = self._extract(r, c)
