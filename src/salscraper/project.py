@@ -6,6 +6,7 @@ from    .                   import  export      as slsx
 
 import  saltools.logging    as      sltl
 import  saltools.misc       as      sltm
+import  saltools.common     as      sltc
 
 import  importlib.util
 import  json
@@ -16,6 +17,28 @@ class Project(EasyObj):
         ('root_dir' , { }),))
     
     @classmethod
+    def _g_json (
+        cls     ,
+        path    ):
+        name        = os.path.split(path)[-1][:-5]
+        json_dict   = sltm.g_config(path)
+        scraper     = Scraper(**json_dict['scraper'  ])
+        if      json_dict.get('logger') :
+            scraper.logger  = sltc.EasyObj.select_type(**json_dict['logger'])
+        return scraper, name
+    @classmethod
+    def _g_py   (
+        cls     ,
+        path    ):
+        name    = os.path.split(path)[-1][:-3]
+        spec    = importlib.util.spec_from_file_location(name, path)
+        module  = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        return  module.g_scraper(), name
+    @classmethod
+    
+    @classmethod
     def run_project     (
         cls     ,
         path    ):
@@ -24,58 +47,41 @@ class Project(EasyObj):
     def run_scraper     (
         cls     ,
         path    ):
-        file_name   = os.path.split(path)[-1]
-        if      file_name.split('.')[-1]    == 'json'   :
-            path_json   = path
-            path_py     = None 
-            scraper_name= file_name[:-5]
-        elif    file_name.split('.')[-1]    == 'py'     :
-            path_py     = path
-            path_json   = None 
-            scraper_name= file_name[:-3]
+        if      path.split('.')[-1] == 'json'   :
+            scraper, name   = cls._g_json(path)
+        elif    path.split('.')[-1] == 'py'     :
+            scraper, name   = cls._g_py(path)
+        
         settings    = sltm.g_config(os.path.join(
             os.path.dirname(path)   ,
-            '__settings.json'     ))    
+            '__settings.json'       ))    
+        
         cls.start_scraper(
-            scraper_name    ,
-            path_json       ,
-            path_py         ,
-            settings        )
+            name        ,
+            scraper     ,
+            settings    )
+    
     @classmethod
     def start_scraper   (
         cls                 ,
-        scraper_name        ,
-        path_json           ,
-        path_py             ,
-        settings    ={}     ,
+        name                ,
+        scraper             ,
+        settings    = {}    ,
         is_join     = True  ):
         def g_default_logger(
-            scraper_name    ,
-            settings        ):
+            name        ,
+            settings    ):
             default_logger_dict = {
-                'type'      : 'ConsoleLogger'   ,
-                'kwargs'    : {}                }
+                    'type'      : 'ConsoleLogger'   ,
+                    'kwargs'    : {}                ,
+                }
             default_logger      = settings.get('default_logger', default_logger_dict)
             default_logger      = getattr(sltl, default_logger['type'])(**default_logger['kwargs'])
-            default_logger.id_  = scraper_name
+            default_logger.id_  = name
             return default_logger
         
-        if      path_py   != None   :
-            spec    = importlib.util.spec_from_file_location(scraper_name, path_py)
-            module  = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            scraper = module.g_scraper()
-        elif    path_json != None   :
-            json_dict   = sltm.g_config(path_json)
-            scraper     = Scraper   (**json_dict['scraper'  ])
-            if      json_dict.get('logger') :
-                logger_dict     = json_dict['logger']
-                scraper.logger  = getattr(sltl, logger['type'])(**logger['kwargs'])
-        else                        :
-            return 
-        
         if      scraper.logger        == None   :
-            scraper.logger  = g_default_logger(scraper_name, settings)
+            scraper.logger  = g_default_logger(name, settings)
         if      scraper.data_exporter == None   :
             scraper.data_exporter   = slsx.Exporter(**settings['data_exporter'])
 
@@ -85,7 +91,8 @@ class Project(EasyObj):
 
         if      is_join:
             scraper.join_exit()
-   
+
+
     def _on_init        (
         self    ):
         if      not os.path.isdir(self.root_dir):

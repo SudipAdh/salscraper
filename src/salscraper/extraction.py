@@ -1,44 +1,28 @@
+'''Data extraction logic.
 '''
-'''
-from    saltools.common     import  EasyObj         , MY_CLASS  
-from    .adapter            import  Adapter
-from    saltools.web        import  g_xpath
-from    saltools.misc       import  g_path
-from    decimal             import  Decimal
+from    saltools.common     import  EasyObj
 from    collections         import  OrderedDict
-from    collections.abc     import  Iterable
-from    .                   import  interface
+from    saltools.misc       import  g_path      , join_string_array
+from    os.path             import  join        , abspath
+from    urllib.parse        import  urlencode
+from    lxml                import  etree
 from    enum                import  Enum
+from    .                   import  interface   as  slsi
+from    .                   import  settings    as  slst
 
-import  saltools.logging    as      stl
+import  saltools.logging    as      sltl
+import  saltools.web        as      sltw
+import  saltools.misc       as      sltm
+import  saltools.common     as      sltc
 
+import  inspect
+import  json
+import  html
 import  re
 
-class FieldType         (Enum):
-    '''Field type.
-
-        Bucket field type.
-    '''
-    INTEGER = 0
-    FLOAT   = 1
-    DECIMAL = 3
-    STRING  = 4
-    BOOL    = 5
-class ExtractorType     (Enum):
-    '''Extractor type.
-
-        Extractor type to specify while parsing sources.
-    '''
-    XPATH       = 0
-    REGEX       = 1
-    OBJ_PATH    = 2
-    CUSTOM      = 3
-    EQUALS      = 4
-class SourceType        (Enum):
-    '''Resource Type.
-
-        The resource type to be parsed for a given request.
-
+class SourceType    (
+    Enum    ):
+    '''Source type.
     '''
     REQUEST_URL     = 0
     RESPONSE_URL    = 1
@@ -48,362 +32,802 @@ class SourceType        (Enum):
     CONTENT         = 5
     CONTEXT         = 6
 
-#Maps each source type to a lambda that generates the correct object.
-SOURCE_TYPE_OBJECT_MAP  = {
-    SourceType.REQUEST_URL  : lambda response: response.request_url         ,
-    SourceType.RESPONSE_URL : lambda response: response.response_url        ,
-    SourceType.HTML         : lambda response: response.html_tree           ,
-    SourceType.JSON         : lambda response: response.json                ,
-    SourceType.TEXT         : lambda response: response.text                ,
-    SourceType.CONTENT      : lambda response: response.content             ,}
-#Maps each field type to its predefined type
-FIELD_TYPE_OBJECT_MAP   = {
-    FieldType.INTEGER   : int       ,
-    FieldType.FLOAT     : float     ,
-    FieldType.DECIMAL   : Decimal   ,
-    FieldType.STRING    : str       ,
-    FieldType.BOOL      : bool      }
+class EXTRACTORS            (
+    ):
+        SOURCE_TYPE_OBJECT_MAP  = {
+            SourceType.REQUEST_URL  : lambda response: response.request_url         ,
+            SourceType.RESPONSE_URL : lambda response: response.response_url        ,
+            SourceType.HTML         : lambda response: response.html_tree           ,
+            SourceType.JSON         : lambda response: response.json                ,
+            SourceType.TEXT         : lambda response: response.text                ,
+            SourceType.CONTENT      : lambda response: response.content             }
+        METHOD_SOURCE_TYPE_MAP  = {
+            'XPATH'     : 'HTML'            ,
+            'NEXT_PAGE' : 'REQUEST_URL'     ,
+            'FROM_JSON' : 'TEXT'            ,
+            }
+        ABREV_METHOD_MAP        = {
+            '='     : 'EQUALS'          ,
+            'x'     : 'XPATH'           ,
+            'r'     : 'REGEX'           ,
+            's'     : 'SOURCE'          ,
+            '?'     : 'REPLACE'         ,
+            'l'     : 'IN_LIST'         ,
+            'j'     : 'FROM_JSON'       ,
+            '!'     : 'FILTER'          ,
+            'a'     : 'ABS_URL'         ,
+            '_'     : 'JOIN_STRS'       ,
+            'p'     : 'OBJ_PATH'        ,
+            'f'     : 'FORMAT'          ,
+            '/'     : 'SLICE'           ,
+            'u'     : 'UNESCAPE_HTML'   ,
+            'd'     : 'TO_DICT'         ,
+            'o'     : 'ARTHM'           ,
+            '>'     : 'UPPER'           ,
+            '<'     : 'LOWER'           ,
+            'rs'    : 'RESOURCE'        ,
+            'st'    : 'STRIP'           ,
+            ' '     : 'NONE'            ,
 
-class Extractor     (
-    EasyObj ):
-    '''Content extractor.
+            '@'     : 'REQUEST'         ,
+            'n'     : 'NEXT_PAGE'       ,
 
-        Does content extraction for all content types found ExtractorType.
-
-        Args:
-            type        (ExtractorType              ): The type of the extractor.
-            source_type (SourceType                 ): The type of source to extract from.
-            expression  (obj                        ): Parsing expression, the type depends on `self.type`,
-                in case of `ExtractorType.CUSTOM`, expression must be a `Callable` with a single argument that 
-                returns a `list` or `None`.
-            adapter     (collections.abc.Callable   ): Performs custom logic on returned results,
-                takes two parameters: 'response' and  `list`.
-    '''
-
-    EasyObj_PARAMS  = OrderedDict((
-        ('type'         , {
-            'default'   : 'XPATH'       , 
-            'type'      : ExtractorType }),
-        ('source_type'  , {
-            'default'   : 'CONTEXT'     , 
-            'type'      : SourceType    }),
-        ('adapter'      , {
-            'type'      : Adapter       ,
-            'default'   : None          }),
-        ('expression'   , {}                        )))
-
-    @stl.handle_exception(
-        level       = stl.Level.ERROR   , 
-        params_exc  = [
-            'self.type'             ,
-            'self.source_type'      ,
-            'self.adapter.functions',
-            'self.expression'       ,
-            'response.request_url'  ,])
-    def extract(
-        self            ,
-        response        ,
-        context = None  ):
-        '''Extract data from the given resource.
-
-            Extracts data from `response` using the `ExtractorType` and `expression`.
-
-            Args:
-                response    (interface.Response ): The response to parse.
-                context     (Object             ): If provided, used instead of parsing response content.
-            Returns:
-                list   : The list  of data collected.
-        '''  
-
-        source  =   context if self.source_type == SourceType.CONTEXT   \
-                    else SOURCE_TYPE_OBJECT_MAP[self.source_type](response)
-        result  = None
-        if      self.type == ExtractorType.XPATH     :
-            result  = g_xpath(source, self.expression)
-        elif    self.type == ExtractorType.REGEX     :
-            result  = re.compile(self.expression).findall(source)
-        elif    self.type == ExtractorType.OBJ_PATH  :
-            result  = g_path(source, self.expression, is_return_last= False)
-        elif    self.type == ExtractorType.CUSTOM    :
-            result  = self.expression(source)   if self.expression != None else  source
-        elif    self.type == ExtractorType.EQUALS    :
-            result  = source  if source == self.expression else None
-        
-        if self.adapter:
-            return self.adapter.adapt(response, context, result)
-        else :
-            return result
-class ExtractorBase (
-    EasyObj ):
-    '''Base for all classes that use `Extrator`
-
-        Implements simple extraction logic using `Extractor`.
-
-        Args:
-            id_         (str                                ): An id.
-            extractor   (Extractor                          ): A single `Extractor` or a list.
-            adapter     (collections.abc.Callable           ): In case of many extractors, the adapter is used to 
-                combine the multiple values returned by the extractors into one, args for the adapter are the source,
-                response and a list of extracted values, arguments are: response, context, value/s.
-            is_pipeline (bool                       :False  ): If `True`, the list of extractors are applied in 
-                sequence to the source.
-    '''
-    EasyObj_PARAMS  = OrderedDict((
-        ('id_'              , {
-            'default'   : 'N/A' }),
-        ('extractor'        , {
-            'type'   : [Extractor]  ,
-            'default': None         }),
-        ('adapter'          , {
-            'type'      : Adapter   ,
-            'default'   : None      }),
-        ('is_pipeline'      , {
-            'type'      : bool      ,
-            'default'   : False     }),))
+            'bf'    : 'B_FLATTEN'       ,
+            'bm'    : 'B_MULTIPLY'      }
+        ABREV_SOURCE_MAP        = {
+            'q' : 'REQUEST_URL'     ,
+            's' : 'RESPONSE_URL'    ,
+            'h' : 'HTML'            ,
+            'j' : 'JSON'            ,
+            't' : 'TEXT'            ,
+            'n' : 'CONTENT'         ,
+            'c' : 'CONTEXT'         }
     
-    def _extract    (
-        self    ,
-        response,
-        context ):
-        '''Extracts the data.
-
-            Uses the extractor/s to get the data from the source.
-            Args:
-                response    (interface.Response  ): Server response.
-                context     (object             ): Specific context to be used.
-            Returns:
-                object  : The parsed value of the field.
-        '''
-        if      self.extractor == None  :
-            return 
-        if      self.is_pipeline        :
-            for extractor in self.extractor    :
-                context     = extractor.extract(response, context)
-            value   = context
-        else                            :
-            value   = [ 
-                x.extract(response, context) for x in self.extractor]
-            if      len(self.extractor) == 1    :
-                value   = value[0]
-        return self.adapter.adapt(response, context, value) if self.adapter else value
-    def extract     (
-        self    ,
-        response,
-        context ):
-        '''Extracts the data.
-
-            Further manipulation of the data returned by `self._extract`
-            Must be overridden 
-            Args:
-                response(interface.Response ): Server response.
-                context (object             ): Specific context to be used.
-            Returns:
-                object  : The parsed value of the field.
-        '''
-        raise NotImplementedError
-class Field         (ExtractorBase):
-    '''A single parsing element.
-
-        A single parsing element.
-
-        Args:
-            type        (FieldType                  ): Field type.
-    '''
-    EasyObj_PARAMS  = OrderedDict((
-        ('type'     , {
-            'type'   : FieldType    ,
-            'default': 'STRING'     }),
-        ('value'    , {
-            'default': None     }),))
-    
-    def extract(
-        self    ,
-        response,
-        context ):
-        if self.value   :
-            return self.value
-        value   = self._extract(response, context)
-        try             :
-            return FIELD_TYPE_OBJECT_MAP[self.type](value)
-        except          :
-            return value
-class Job           (ExtractorBase):
-    '''Job to be performed by the scraper.
-
-        A Request to be executed by the scraper on the fly.
-
-        Args:
-            method          (interface.Method   ): Requests method.
-            request_adapter (Adapter            ): Request adapter, params are `interface.response`, context (`object`), 
-                extracted values (`list`, `object`), returns a `list` of `Interface.Request`.
-    '''
-    EasyObj_PARAMS  = OrderedDict((
-        ('request_adapter'  , {
-            'type'      : Adapter   ,
-            'default'   : 'GET'     }),))
-
-    def extract(
-        self            ,
-        response        ,
-        context = None  ):
-        args        = self._extract(response, context)
-        return self.request_adapter.adapt(
-            response    , 
-            context     , 
-            args        )
-class Bucket        (ExtractorBase):
-    '''Data collection bucket.
-
-        Data and urls extraction logic.
-
-        Args:
-            buckets         (Bucket     ): Sub-buckets.
-            fields          (Field      ): Fields.
-            job             (Job        ): A new request to be executed by the scraper.
-            data_adapter    (Adapter    ): Bucket adapter.
-    '''
-    EasyObj_PARAMS  = OrderedDict((
-        ('buckets'          , {
-            'type'      : [MY_CLASS]    , 
-            'default'   : []            }),
-        ('fields'           , {
-            'type'      : [Field]   , 
-            'default'   : []        }),
-        ('jobs'             , {
-            'type'      : [Job] , 
-            'default'   : []    }),
-        ('is_empty_on_None' , {
-            'type'      : bool      ,
-            'default'   : False     }),
-        ('data_adapter'     , {
-            'type'      : Adapter   ,
-            'default'   : None      }),))
-
-    def extract(
-        self            ,
-        response        ,
-        context = None  ):
-
-        data_dicts      = []
-        if      self.extractor  != None :
-            bucket_contexts = self._extract(response, context)
-            if      self.is_empty_on_None       \
-                    and bucket_contexts == None :
-                return []
-        else                            :
-            bucket_contexts = [None]
-        if      not isinstance(bucket_contexts, list):
-            bucket_contexts  = [bucket_contexts]
-            
-        for bucket_context in bucket_contexts   :
-            context_dict    = {}
-            
-            for field in self.fields    :
-                context_dict[field.id_]   = field.extract(response, bucket_context)
-            for bucket in self.buckets  :
-                context_dict[bucket.id_]  = {
-                    'data'      : bucket.extract(response, bucket_context)  ,
-                    'adapter'   : bucket.adapter                            }
-            
-            for job in self.jobs    :
-                context_dict[job.id_]     = job.extract(response, bucket_context)
-            
-            data_dicts.append(context_dict)
-        return data_dicts
-
-class ParsingRule   (EasyObj):
-    '''Single parsing rule.
-        
-        A single parsing rule.
-
-        Args:
-            source_selector (Extractor      ): Extractor to select the source.
-            buckets         (list, Bucket   ): A list of buckets to collect data.
-            jobs            (list, Job      ): A list of jobs to collect new urls, jobs.
-    '''
-    EasyObj_PARAMS  = OrderedDict((
-        ('source_selector'  , {
-            'type': Extractor    }),
-        ('buckets'          , {
-            'type'      : [Bucket]  ,
-            'default'   : []        }),
-        ('jobs'             , {
-            'type'      : [Job] ,
-            'default'   : []    }),
-        ('data_adapter'     , {
-            'type'      : Adapter   ,
-            'default'   : None      }),))
-
-    def check(
-        self        ,
-        source      ):
-        '''Checks if the rule is a match for the given source.
-
-            Checks if the rule is a match for the given source, The correct source should
-            be passed depending on `self.source_selector`.
-
-            Args:
-                source  (object ): The source to parse.
-            Returns:
-                bool    : True if the source should be parsed by this rule.
-        '''
-        return True if self.source_selector.extract(source) else False
-class Parser        (EasyObj):
-    '''Parsing logic.
-
-        Implements the parsing logic for a given website.
-
-        Tests a given resource (`Interface.Response`) against a set of rules, if a match is found, the resource is parsed
-            following that rule. 
-        The resource is tested against the rules depending on the source type following `SourceType` enum order, 
-
-
-        Args:
-            rules           (ParsingRule                    ): Parsing rules.
-            is_unique_rule  (bool                   : True  ): If True, when a given resource is matched with a rule,
-                no further rules are tested against it. 
-    '''
-    EasyObj_PARAMS  = OrderedDict((
-        ('rules'            , {
-            'type'   : [ParsingRule]    }),
-        ('is_unique_rule'   , {
-            'default': True             }),))
-
-    def parse(
-        self    ,
-        response):
-        '''Parses the response using the correct rule.
-
-            Parses the web response using the correct rule following the order
-                in SourceType
-
-            Args:
-                response    (interface.Response ): The response object.
-            Returns:
-                list, ParserResult  : The parsing result generated by all matching parsing rules.
-        '''
-        data            = {}
-        requests        = []
-        rule_found      = False
-        
-        for rule in self.rules:
-            if      rule.check(response):
-                for b in rule.buckets:
-                    data[b.id_]    = {
-                        'data'      : b.extract(response)   ,
-                        'adapter'   : b.data_adapter        }
-                for j in rule.jobs  :
-                    requests        +=j.extract(response)
+        @classmethod
+        def g_all_names (
+            cls ):
+            return [
+                x[0] for x in inspect.getmembers(cls, predicate=inspect.ismethod)   \
+                if x[0] not in ['g_all_names']]
+    #----------------------------------------
+    # Data extractors
+    #----------------------------------------
+        @classmethod
+        def EQUALS          (
+            cls ,
+            r   , 
+            c   , 
+            x   ,
+            y   ):
+            '''Check if x == y.
                 
-                rule_found  = True
+                Args:
+                    x       (object ): Any `object`.
+                    y       (object ): Any `object`.
+                Returns:
+                    object|None   : x if `x` equals `y` else `None`.
+            '''
+            return x if x == y else None
+        @classmethod
+        def XPATH           (
+            cls     ,
+            r       , 
+            c       ,
+            x       ,
+            xpath   ):
+            '''Regex extractor.
+                
+                Args:
+                    x       (object ): The html source or element.
+                    xpath   (str    ): Xpath expression.
+                Returns:
+                    list[object]    : A list of matches.
+            '''
+            return sltw.g_xpath(x, xpath)
+        @classmethod
+        def REGEX           (
+            cls             ,
+            r               ,
+            c               ,
+            x               ,
+            pattern = '.*'  ):
+            '''Regex extractor.
+                
+                Args:
+                    x       (str    ): The string to extract from.
+                    regex   (str    ): Pattern to match.
+                Returns:
+                    list[str]   : A list of matches.
+            '''
+            return re.findall(pattern, x)
+        @classmethod
+        def SOURCE          (
+            cls     ,
+            r       , 
+            c       , 
+            x       ):
+            '''Gets the HTML source of an HTML element as string.
+                
+                Args:
+                    x   (lxml.html.HtmlElement) : The element to get the source of.
+                Returns:
+                    str: HTML source of the element.
+            '''
+            return etree.tostring(x, encoding='unicode').strip()
+        @classmethod
+        def REPLACE         (
+            cls                 ,
+            r                   ,
+            c                   ,
+            x                   ,
+            pattern     = '\n'  ,
+            replacement = ' '   ):
+            '''Replaces the pattern with the replacement.
 
-                if      self.is_unique_rule and rule_found:
+                Args:
+                    x           (str)   : The string te process.
+                    pattern     (str)   : The regex pattern to replace.
+                    replacement (str)   : Replacement string.
+                Returns:
+                    str : The processed string.
+            '''
+            return re.sub(pattern, replacement, x)
+        @classmethod
+        def IN_LIST         (
+            cls ,
+            r   ,
+            c   , 
+            x   ):
+            '''Put in a list
+
+                Args:
+                    x (object)  : The object to put in a list.
+                Returns:
+                    list[object]    : A list containing the object.
+            '''
+            return [x]
+        @classmethod
+        def FROM_JSON       (
+            cls ,
+            r   , 
+            c   , 
+            x   ):
+            '''Creates a dict from json.
+
+                Args:
+                    x   (str    ): JSON string.
+                Returns:
+                    dict    : A dict object.
+            '''
+            return json.loads(x)
+        @classmethod
+        def OBJ_PATH        (
+            cls                     ,
+            r                       ,
+            c                       ,
+            x                       ,
+            path            = 0     ,
+            is_return_last  = False ):
+            '''Gets the value at the given path.
+
+                Args:
+                    x               (object                 ): Can be anything from an object, list, or dict.
+                    path            (str|int|list[str|int]  ): Can be an integer in case of indices, a string for dict keys
+                        or objects attributes, or list containing both, the list can also be a string like the example :
+                            - `path_to.0.name` , this will get the value of path_to from the dict or obj, then gets the 
+                                element at index 0, then the property/key name.
+                    is_return_last  (bool                   ): If `True`, returns the last available value in the path before 
+                        failure.
+                Returns:
+                    object  : The value found at the given path.
+            '''
+            return g_path(x, path, is_return_last= is_return_last)
+        @classmethod
+        def FILTER          (
+            cls             ,
+            r               ,
+            c               ,
+            x               ,
+            path            ,
+            value   = None  ):
+            '''Filters the values in an iterable.
+
+                Args:
+                    x           (collections.abc.Iterable   ): The iterable to filter.
+                    path        (str|int|list[str|int]      ): Can be an integer in case of indices, a string for dict keys
+                        or objects attributes, or list containing both, the list can also be a string like the example :
+                            - `path_to.0.name` , this will get the value of path_to from the dict or obj, then gets the 
+                                element at index 0, then the property/key name.
+                    value       (object                     ): The value to filter by.
+                Returns:
+                    list    : A flitered list.
+            '''
+            return [y for y in x if (
+                (value == None and g_path(y, path, is_return_last= False) != None   )\
+                or g_path(y,path) == value                                          )]
+        @classmethod
+        def ABS_URL         (
+            cls ,
+            r   ,
+            c   ,
+            x   ):
+            '''Gets the absolute url if a url is not absolute.
+
+                Args:
+                    x   (str    ): A url.
+                Returns:
+                    str : Absolute url.
+            '''
+            return r.host+ x if x[:4] != 'http' else x
+        @classmethod
+        def JOIN_STRS       (
+            cls         ,
+            r           ,
+            c           ,
+            x           ,
+            by  = ' '   ):
+            '''Joins a list of string.
+
+                Args:
+                    x   (list[str]  ): A list of strings.
+                    by  (str        ): The string to join by.
+                Returns:
+                    str : The full string.
+            '''
+            return join_string_array(x, by)
+        @classmethod
+        def SLICE           (
+            cls         ,
+            r           ,
+            c           ,
+            x           ,
+            start   = 0 ,
+            end     = -1, 
+            step    = 1 ):
+            '''Slice a list.
+
+                Args:
+                    x       (list   ): The list to slice.
+                    start   (int    ): Start index.
+                    end     (int    ): End index.
+                    step    (int    ): Step.
+                Returns:
+                    list    : The slice.
+            ''' 
+            return x[start:end:step]
+        @classmethod
+        def FORMAT          (
+            cls     ,
+            r       ,
+            c       ,
+            x       ,
+            f_str   ):
+            '''Format a string.
+
+                Args:
+                    x       (dictlist|object    ): List or dict of values.
+                    f_str   (str                ): Format string.
+                Returns:
+                    str : The formatted string.
+            '''
+            x   = x if (isinstance(x,list) or isinstance(x, dict)) else [x]
+            return f_str.format(*x)             \
+                    if      isinstance(x, list) \
+                    else    f_str.format(**x)
+        @classmethod
+        def UNESCAPE_HTML   (
+            cls ,
+            r   ,
+            c   ,
+            x   ):
+            '''Unescape HTML.
+                Example:
+                    - `Kristj&aacuten V&iacute;ctor` >>> `Kristján Víctor`
+                Args:
+                    x   (str    ): The html to unescape.
+                Returns:
+                    str : Escaped HTML.
+            ''' 
+            return html.unescape(x)           
+        @classmethod
+        def TO_DICT         (
+            cls     ,
+            r       ,
+            c       ,
+            x       ,
+            keys    ):
+            '''Convers a list to a dict.
+
+                Args:
+                    x       (list       ): A list.
+                    keys    (list[str]  ): A list of keys.
+                Reruns:
+                    A dict.
+            '''
+            return {keys[i]: x[i] for i in range(len(keys))}
+        @classmethod
+        def ARTHM           (
+            cls         ,
+            r           ,
+            c           ,
+            x           ,
+            y           ,
+            op  = '+'   ):
+            '''Performs an arithmetic operation.
+
+                Args:
+                    y   (float|int  ): Right operand.
+                    op  (str        ): Operator +, -, *, **,/, //, %
+            '''
+            if      op == '+'   :
+                return x+ y
+            elif    op == '-'   :
+                return x- y
+            elif    op == '*'   :
+                return x* y
+            elif    op == '**'  :
+                return x** y
+            elif    op == '/'   :
+                return x/ y
+            elif    op == '//'  :
+                return x// y
+            elif    op == '%'   :
+                return x// y
+        @classmethod
+        def UPPER           (
+            cls     ,
+            r       ,
+            c       ,
+            x       ):
+            '''Upper case.
+
+                Args:
+                    x       (list|dict  ): A string.
+                Returns:
+                    str :  x in upper case.
+            '''
+            return x.upper()
+        @classmethod
+        def LOWER           (
+            cls     ,
+            r       ,
+            c       ,
+            x       ):
+            '''lower case.
+
+                Args:
+                    x       (list|dict  ): A string.
+                Returns:
+                    str :  x in lower case.
+            '''
+            return x.lower()
+        @classmethod
+        def RESOURCE        (
+            cls     ,
+            r       ,
+            c       ,
+            x       ):
+            '''Loads a resource
+
+                Args:
+                    x       (str    ): resource name.
+                Returns:
+                    dict    :  The dict loaded from the JSON resource.
+            '''
+            resource_path   = join(slst.RESOURCE_FOLDER, x+'.json')
+            return sltm.g_config(resource_path)
+        @classmethod
+        def STRIP           (
+            cls     ,
+            r       ,
+            c       ,
+            x       ):
+            '''Strips a string.
+
+                Args:
+                    x       (str    ): string.
+                Returns:
+                    str :  Stripped string.
+            '''
+            return x.strip()
+        @classmethod
+        def NONE            (
+            cls     ,
+            r       ,
+            c       ,
+            x       ):
+            '''Returns the same object.
+
+                Args:
+                    x   (object ): An object.
+                Returns:
+                    object  :  The same object.
+            '''
+            return x
+
+    #----------------------------------------
+    # Buckets extractors
+    #----------------------------------------
+        @classmethod
+        def B_FLATTEN   (
+            cls                     ,
+            r                       , 
+            c                       , 
+            x                       , 
+            keys                    , 
+            is_full_name    = False ):
+            '''Flaten nested arrays or dicts.
+
+                Rises all keys elements to the top level:
+                    {'b': '1', 'a': {'a1':'1', 'a2':2}} becomes {'b': '1', 'a1':'1', 'a2':2}.
+                
+                Args:
+                    bucket          (list[dict] ): Data bucket.
+                    keys            (list[str]  ): The keys to flatten.
+                    is_full_name    (bool       ): If `True`, combine sub-bucket value with flattened fields.
+                Return:
+                    dict    : Flattened bucket.   
+            ''' 
+            bucket  = x.copy()
+            def g_buckets_values(
+                b_name      ,
+                s_bucket    ):
+                values  = {}
+                for f_name, field in s_bucket.items() :
+                    if      is_full_name   :
+                        f_name  = f'{b_name}_{f_name}'
+                    values[f_name]   = field
+                return values 
+
+            for key in keys :
+                if len(bucket[key]) :
+                    values  = g_buckets_values(key, bucket[key][0])
+                    del bucket[key]
+                    bucket.update(values)
+            return bucket
+        @classmethod
+        def B_MULTIPLY  (
+            cls                     ,
+            r                       ,
+            c                       ,
+            buckets                 ,
+            bucket_A_name           ,
+            bucket_B_name           ,
+            new_name        = None  ,
+            is_del_buckets  = True  ):
+            '''Creates a bucket for each combination of bucket A and B.
+
+                Args:
+                    buckets         (dict   ): The buckets dict.
+                    bucket_A_name   (str    ): Bucket A name.
+                    bucket_B_name   (str    ): Bucket B name.
+                    new_name        (str    ): The name for the new bucket. If None it is set to `bucket_A_name`.
+                    is_del_buckets  (bool   ): If `True`, delete processed buckets.
+                Returns:
+                    dict    : The new bucket data.
+            '''
+            buckets     = buckets.copy()
+            bucket_1    = buckets[bucket_A_name]   
+            bucket_2    = buckets[bucket_B_name]
+            if      not new_name    :
+                new_name = bucket_A_name
+
+            new_list    = []
+            for values_1 in bucket_1 :
+                for values_2  in bucket_2 :
+                    values_1 = values_1.copy()
+                    values_2 = values_2.copy()
+                    values_1.update(values_2)
+                    new_list.append(values_1)
+
+            if      is_del_buckets :
+                del buckets[bucket_A_name]
+                del buckets[bucket_B_name]
+            
+            buckets[new_name]   = new_list
+            
+            return buckets
+
+    #----------------------------------------
+    # Requests extractors
+    #----------------------------------------
+        @classmethod
+        def REQUEST     (
+            cls                         ,
+            r                           ,
+            c                           ,
+            x                           ,
+            url     = None              ,
+            method  = slsi.Method.GET   ,
+            params  = {}                ):
+            '''Build a request.
+
+                Args:
+                    x       (list[str]|list[dict]   ): The job extracted args or a list of urls.
+                    url     (str                    ): The url of the request, If `None`, `x` must be a list of urls.
+                    method  (interface.Method       ): Request method.
+                    params  (dict                   ): The default params. 
+                
+                Returns:
+                    interface.Request   : The genrated request. 
+            '''
+            if      isinstance(method, str) :
+                method  = getattr(slsi.Method, method)
+            if      not url                 :
+                return slsi.Request(x, params= params, method= method)
+            else            :
+                args_params  = params.copy()
+                args_params.update(x)
+                return slsi.Request(url, params= args_params, method= method)
+        @classmethod
+        def NEXT_PAGE   (
+            cls             ,
+            r               ,
+            c               ,
+            x               ,
+            param   = None  ):
+            '''Gets the next page url.
+
+                Args:
+                    x       (str    ): If given, it will be used instead of the curnet request url.
+                    param   (str    ): If given, it will be parsed first if found.
+                Returns:
+                    str : The url for the next page. 
+            '''
+            possible_params = ['page', 'page_number', 'pg', 'p', '']
+            page_number     = None
+            full_match      = None
+            current_url     = x if isinstance(x, str) else r.request_url 
+
+            if      param != None   :
+                possible_params.insert(0, param)
+
+            for possible_param in possible_params   :
+                pattern         = f'{possible_param}\w*?[\/=](\d+)'
+                pattern_full    = f'{possible_param}\w*?[\/=]\d+'
+                if      len(re.findall(pattern, current_url)):
+                    page_number = int(re.findall(pattern, current_url)[0]) 
+                    full_match  = re.findall(pattern_full, current_url)[0]
+                    prefix      = full_match[:-len(str(page_number))]
                     break
+            
+            assert page_number  != None , 'Cannot find a pagination parameter.'
 
-            if      self.is_unique_rule and rule_found:
-                break
+            return re.sub(pattern_full,prefix+str(page_number+1), current_url)
+class ExtractorFunction     (
+    EasyObj ):
+    '''Extractor function.
+    '''
+    EasyObj_PARAMS  = OrderedDict((
+        ('method'       , {
+            'default'   : 'JOIN_STRINGS'    ,
+            'adapter'   : lambda m          :\
+                            getattr(EXTRACTORS, m) if isinstance(m, str) else       \
+                            lambda self, r, c, x, **kwargs: m(r, c, x **kwargs)}    ),
+        ('kwargs'       , {
+            'type'      : dict  ,     
+            'default'   : {}    ,}),
+        ('is_list'      , {
+            'type'      : bool  ,
+            'default'   : False }),
+        ('source_type'  , {
+            'type'      : SourceType            ,
+            'default'   : SourceType.CONTEXT    }),))
         
-        assert rule_found, 'No rule is found for the given response.'
+    @classmethod
+    def _parse_value        (
+        cls     ,
+        str_    ):
+        '''Parses the value of a kwarg.
+
+            Logic:
+                - If the value is raw `<(value)>`, return the value witout further parsing.
+                - Try parsing to int, float, bool in order, if all failed, return the value as a string.
+            
+            Args:
+                str_    (str    ): The string to parse.
+            Returns:
+                object  : The parsed string as an object.
+        '''
+        open_       = slst.ESC_OPEN.replace('(', '\(')
+        close       = slst.ESC_CLOSE.replace(')', '\)')
+        raw_pattern = f'{open_}(.*?){close}'
+        raw_value   = g_path(re.findall(raw_pattern, str_),is_return_last=False)
+        if      raw_value != None:
+            return raw_value
+
+        types   = [int, float, bool]
+        for type_ in types:
+            try     :
+                return sltc.EasyObj.DEFAULT_PARSERS[type_](str_)
+            except  :
+                pass
+        return str_
+    @classmethod
+    def _parse_method_type  (
+        cls     ,
+        str_    ):
+        pattern                         = '^(\*?)(.+?)(?:,(\w+?))?(?::.*)?$$'
+        is_list, method_, source_type_  = re.findall(pattern, str_, re.DOTALL)[0]
         
-        return data, requests, rule.data_adapter
-                
+        is_list = True if is_list == '*' else False
+        
+        if      len(method_) < 4                        :
+            method  = EXTRACTORS.ABREV_METHOD_MAP.get(method_)
+        else                                            :
+            method  = method_
+        if      method not in EXTRACTORS.g_all_names()  :
+            raise ValueError(f'Method name/abrv {method_} is not found.')
+        
+        source_type = source_type_
+        if      source_type_ == ''                              :
+            source_type = 'CONTEXT'
+        elif    len(source_type_) < 4                           :
+            source_type = EXTRACTORS.ABREV_SOURCE_MAP.get(source_type)
+        if      source_type not in SourceType._member_names_    :
+            raise ValueError(f'Source type {source_type_} is not found.')
+        
+        return is_list, method, source_type
+    @classmethod
+    def _parse_kwargs       (
+        cls     ,
+        str_    ):
+        kwargs  = {}
+        is_list, method, source_type    = cls._parse_method_type(str_)
+        pattern_kwargs                  = '(?:.*?):(.*)'
+        pattern                         = '(?:([\w*]*?)?=)?(.+?)(?:<->|$)'
+        kwargs_str                      = re.findall(pattern_kwargs, str_)
+
+        if      len(kwargs_str) != 0    :
+            kwargs_str                      = kwargs_str[0]
+            kwargs_strs                     = re.findall(pattern, kwargs_str)
+            names   = getattr(EXTRACTORS, method).__code__.co_varnames[4:]
+            try     :
+                for i in range(len(kwargs_strs)):
+                    k_name  = kwargs_strs[i][0]
+                    is_kist = k_name[:1] == '*'
+                    k_name  = k_name.replace('*', '')
+
+                    if      k_name == ''    :
+                        k_name  = names[i]
+                    kwargs[k_name]  = [cls._parse_value(x) for x in kwargs_strs[i][1].split(slst.LIST_SEPARATOR)]   \
+                                        if is_kist                                  \
+                                        else   cls._parse_value(kwargs_strs[i][1]   )
+            except  :
+                raise ValueError(f'Kwargs cannot be parsed {str_}')
+        return {
+            'is_list'       : is_list       , 
+            'method'        : method        , 
+            'source_type'   : source_type   , 
+            'kwargs'        : kwargs        }
+    @classmethod
+    def _EasyObj_parser     (
+        cls     ,
+        *args   ,
+        **kwargs):
+        '''Parsing logic for ExtractorFunction.
+        '''
+        if      not len(kwargs) and len(args) == 1 and isinstance(args[0], str) :
+            return [], cls._parse_kwargs(args[0])
+        else                                                                    :
+            return args, kwargs
+
+    @sltl.handle_exception  (
+        sltl.Level.ERROR    ,
+        params_exc          = [
+                'self.method'       ,
+                'self.kwargs'       ,
+                'self.source_type'  ,
+                'self.is_list'      ,
+                'r'                 ,
+                'c'                 ,
+                'x'                 ,
+            ]               )
+    def extract             (
+        self        , 
+        r           , 
+        c           ,
+        x           , 
+        **kwargs    ):
+        '''Extraction logic.
+        '''
+        kwargs.update(self.kwargs)
+
+        if      self.is_list    :
+            return [self.method(r, c, y, **kwargs) for y in x]
+        else                    : 
+            return self.method(r, c, x, **kwargs)
+class ExtractorCollection   (
+    EasyObj ):
+    EasyObj_PARAMS  = OrderedDict((
+        ('functions'    , {
+            'type'      : [ExtractorFunction]   ,
+            'default'   : ['JOIN_STRS']         },),))
+    
+    @classmethod
+    def _EasyObj_parser     (
+        cls     ,
+        *args   ,
+        **kwargs):
+        '''Parsing logic for Extractor.
+
+            Logic :
+                - If `functions` is in kwargs, put the value into args, empty kwargs.
+                - If the first arg is a string, split by `slst.EXTRACTORS_SEPARATOR` and put into args.
+        '''
+        kwargs  = kwargs.copy()
+        args    = list(args).copy()
+
+        if      kwargs.get('functions')   :
+            args    = [kwargs['functions']]
+            del kwargs['functions']
+        if      isinstance(args[0], str)    :
+            args = [args[0].split(slst.EXTRACTORS_SEPARATOR)]
+        return args, kwargs
+
+    def extract             (
+        self    ,
+        r       ,
+        c       ,
+        x       ,
+        **kwargs):
+        start_fn    = self.functions[0]
+        if      c == None       :
+            if      start_fn.source_type == SourceType.CONTEXT  :
+                source_type_    = EXTRACTORS.METHOD_SOURCE_TYPE_MAP.get(start_fn.method.__name__, 'TEXT')
+                source_type_    = getattr(SourceType, source_type_)
+            else                                                : 
+                source_type_    = start_fn.source_type
+            c   = EXTRACTORS.SOURCE_TYPE_OBJECT_MAP[source_type_](r)
+        if      x == None       :
+            if      start_fn.source_type == SourceType.CONTEXT  :
+                x   = c
+            else                                            :
+                x   = EXTRACTORS.SOURCE_TYPE_OBJECT_MAP[start_fn.source_type](r)
+
+        for function in self.functions:
+            x = function.extract(r, c, x, **kwargs)
+        return x
+class Extractor             (
+    EasyObj ):
+    '''Data extractor
+    '''
+    EasyObj_PARAMS  = OrderedDict((
+        ('collections'  , {
+            'type'      : [ExtractorCollection  ],
+            'default'   : ['JOIN_STRS']         },),))
+    
+    @classmethod
+    def _EasyObj_parser     (
+        cls     ,
+        *args   ,
+        **kwargs):
+        '''Parsing logic for Extractor.
+
+            Logic :
+                - If `collections` is in kwargs, put the value into args, empty kwargs.
+                - If the first arg is a string, split by `slst.COLLECTIONS_SEPARATOR` and put into args.
+        '''
+        kwargs  = kwargs.copy()
+        args    = list(args).copy()
+
+        if      kwargs.get('collections')   :
+            args    = [kwargs['collections']]
+            del kwargs['collections']
+        if      isinstance(args[0], str)    :
+            args = [args[0].split(slst.COLLECTIONS_SEPARATOR)]
+        return args, kwargs
+
+    @sltl.handle_exception  (
+        sltl.Level.ERROR            ,
+        params_exc          = None  )
+    def extract             (
+        self    ,
+        r       ,
+        c       ,
+        x       ,
+        **kwargs):
+        values  = []
+        for collection in self.collections  :
+            values.append(collection.extract(r, c, x, **kwargs))
+        return values if len(self.collections) > 1 else values[0]
