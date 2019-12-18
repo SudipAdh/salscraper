@@ -123,7 +123,7 @@ class Field         (
             Return:
                 object  : The parsed value.
         '''
-        if      str_ == None    :
+        if      str_ in [None, '']  :
             return None
         value   = None
         if      type_ == FieldType.REQUEST      :
