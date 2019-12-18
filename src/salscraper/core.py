@@ -242,7 +242,7 @@ class Bucket        (
         r_executer  = None  ,
         parser      = None  ,
         r_list      = None  ):
-        contexts    = self._extract(r, c) if self.extractor != None else [None]
+        contexts    = self._extract(r, c) if self.extractor != None else [c]
         if      contexts == None    :
             contexts    = [c]
         data        = []
