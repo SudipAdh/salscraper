@@ -123,6 +123,8 @@ class Field         (
             Return:
                 object  : The parsed value.
         '''
+        if      str_ == None    :
+            return None
         value   = None
         if      type_ == FieldType.REQUEST      :
             if      not isinstance(str_, list)  :
