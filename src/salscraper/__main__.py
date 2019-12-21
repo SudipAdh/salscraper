@@ -17,6 +17,10 @@ def main        (
     if      os.path.isfile(path)   :
         slsp.Project.run_scraper(path)
     elif    os.path.isdir(path)    :
-        slsp.Project.run_project(path)
+        p   = slsp.Project(
+            n_workers   = 5     ,
+            root_dir    = path  )
+        p.start()
+        p.join_exit()
 
 main()
