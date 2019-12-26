@@ -1,6 +1,7 @@
 from    collections         import  OrderedDict
 from    .scraper            import  Scraper
 from    .                   import  export      as slsx
+from    .                   import  extraction  as slse
 
 import  saltools.logging    as      sltl
 import  saltools.parallel   as      sltp
@@ -31,12 +32,20 @@ class Project(
     def _g_py           (
         cls     ,
         path    ):
-        name    = os.path.split(path)[-1][:-3]
-        spec    = importlib.util.spec_from_file_location(name, path)
-        module  = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-
+        module, name    = sltm.load_module(path)
         return  module.g_scraper(), name
+    @classmethod
+    def _load_customs   (
+        cls         ,
+        script_path ):
+        path    = os.path.join(
+            os.path.dirname(script_path)    ,
+            '__custom_extractors.py'        )
+        custom_exts, name   = sltm.load_module(path)
+        for ext_name in dir(custom_exts.EXTRACTORS):
+            if      callable(getattr(custom_exts.EXTRACTORS, ext_name))     and \
+                    not ext_name.startswith('__')                               :
+                setattr(slse.EXTRACTORS, ext_name, getattr(custom_exts.EXTRACTORS, ext_name))   
     @classmethod
     def _start_scraper  (
         cls                 ,
@@ -71,14 +80,16 @@ class Project(
         cls             ,
         path            ,
         is_join = True  ):
+        cls._load_customs(path)
+        settings    = sltm.g_config(os.path.join(
+            os.path.dirname(path)   ,
+            '__settings.json'       ))
+
         if      path.split('.')[-1] == 'json'   :
             scraper, name   = cls._g_json(path)
         elif    path.split('.')[-1] == 'py'     :
             scraper, name   = cls._g_py(path)
         
-        settings    = sltm.g_config(os.path.join(
-            os.path.dirname(path)   ,
-            '__settings.json'       ))    
         
         cls._start_scraper(
             name        ,
