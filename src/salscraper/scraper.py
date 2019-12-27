@@ -45,8 +45,9 @@ class Scraper   (
         for request in self.start_requests  :
             self.start_tasks.append(
                 sltp.FactoryTask(
-                    target  = self.execute_request  ,
-                    args    = [request]             ))
+                    target  = self.execute_request      ,
+                    args    = [
+                        slsi.Request(request) if isinstance(request, str) else slsi.Request(**request)]   ))
 
         self.n_data             = 0
         self.on_stop            = self._on_stop

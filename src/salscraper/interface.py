@@ -26,7 +26,8 @@ class Request   (
     EasyObj_PARAMS  = OrderedDict((
         ('url'          , {}),
         ('method'       , {
-            'default': Method.GET   }),
+            'type'      : Method        ,
+            'default'   : Method.GET    }),
         ('params'       , {
             'default': {}           }),
         ('cookies'      , {
@@ -52,6 +53,7 @@ class Response  (
     EasyObj_PARAMS  = OrderedDict((
         ('response_url' , {}        ),
         ('request_url'  , {}        ),
+        ('request_obj'  , {}        ),
         ('status_code'  , {}        ),
         ('content'      , {}        ),
         ('text'         , {}        ),
@@ -154,14 +156,16 @@ class Requests  (
                 timeout = self.timeout  )
         elif    request.method == Method.JSON   :
             r, session = do_request(
-                request.url             , 
+                request.url             ,
                 request.params          ,
-                is_post = True          ,
+                is_json = True          ,
                 headers = self.HEADERS  ,
                 timeout = self.timeout  )
         return Response(
             response_url= r.url         ,
+            request_obj = request       ,
             request_url = request.url   ,
+            request_obj = request       ,
             status_code = r.status_code ,
             content     = r.content     ,
             text        = r.text        ,
