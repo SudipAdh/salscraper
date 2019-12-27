@@ -165,7 +165,6 @@ class Requests  (
             response_url= r.url         ,
             request_obj = request       ,
             request_url = request.url   ,
-            request_obj = request       ,
             status_code = r.status_code ,
             content     = r.content     ,
             text        = r.text        ,
