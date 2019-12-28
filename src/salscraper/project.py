@@ -10,6 +10,8 @@ import  saltools.common     as      sltc
 import  saltools.files      as      sltf
 
 import  importlib.util
+import  string
+import  random
 import  json
 import  os
 
@@ -62,7 +64,8 @@ class Project(
                 }
             default_logger      = settings.get('default_logger', default_logger_dict)
             default_logger      = getattr(sltl, default_logger['type'])(**default_logger['kwargs'])
-            default_logger.id_  = name
+            prefix              = ''.join(random.choices(string.ascii_uppercase+'0123456789', k= 5))
+            default_logger.id_  = f'{name}-{prefix}'
             return default_logger
         
         if      scraper.logger        == None   :
