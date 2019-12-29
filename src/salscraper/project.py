@@ -1,7 +1,8 @@
+from    .                   import  export      as  slsx
+from    .                   import  extraction  as  slse
+from    datetime            import  datetime    as  dt
 from    collections         import  OrderedDict
 from    .scraper            import  Scraper
-from    .                   import  export      as slsx
-from    .                   import  extraction  as slse
 
 import  saltools.logging    as      sltl
 import  saltools.parallel   as      sltp
@@ -64,7 +65,7 @@ class Project(
                 }
             default_logger      = settings.get('default_logger', default_logger_dict)
             default_logger      = getattr(sltl, default_logger['type'])(**default_logger['kwargs'])
-            prefix              = ''.join(random.choices(string.ascii_uppercase+'0123456789', k= 5))
+            prefix              = dt.utcnow().isoformat()
             default_logger.id_  = f'{name}-{prefix}'
             return default_logger
         
