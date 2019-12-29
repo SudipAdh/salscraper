@@ -5,7 +5,7 @@ from    collections         import  OrderedDict
 from    saltools.misc       import  g_path      , join_string_array
 from    os.path             import  join        , abspath
 from    urllib.parse        import  urlencode
-from    lxml                import  etree
+from    lxml.html           import  etree
 from    enum                import  Enum
 from    .                   import  interface   as  slsi
 from    .                   import  settings    as  slst
@@ -141,7 +141,7 @@ class EXTRACTORS            (
             '''
             return re.findall(pattern, x)
         @classmethod
-        def SOURCE          (
+        def TO_HTML         (
             cls     ,
             r       , 
             c       , 
@@ -149,11 +149,25 @@ class EXTRACTORS            (
             '''Gets the HTML source of an HTML element as string.
                 
                 Args:
-                    x   (lxml.html.HtmlElement) : The element to get the source of.
+                    x   (lxml.html.HtmlElement  ): The element to get the source of.
                 Returns:
                     str: HTML source of the element.
             '''
             return etree.tostring(x, encoding='unicode').strip()
+        @classmethod
+        def FROM_HTML       (
+            cls     ,
+            r       , 
+            c       , 
+            x       ):
+            '''Gets the HTML source of an HTML element as string.
+                
+                Args:
+                    x   (str    ): The html source.
+                Returns:
+                    lxml.html.HtmlElement   : HTML element.
+            '''
+            return etree.fromstring(x)
         @classmethod
         def REPLACE         (
             cls                 ,

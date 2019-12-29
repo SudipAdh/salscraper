@@ -47,10 +47,14 @@ class   TestEXTRACTORS          (
             None                ,
             '1abc2'             ,
             pattern = '[a-z]+'  ) == ['abc']
-        assert slse.EXTRACTORS.SOURCE           (
+        assert slse.EXTRACTORS.TO_HTML          (
             None            ,
             None            ,
             html_element    ) == '<title>Quotes to Scrape</title>'
+        assert slse.EXTRACTORS.FROM_HTML        (
+            None                                ,
+            None                                ,
+            '<title>Quotes to Scrape</title>'   ).xpath('//text()')[0] == 'Quotes to Scrape'
         assert slse.EXTRACTORS.REPLACE          (
             None                    ,
             None                    ,
