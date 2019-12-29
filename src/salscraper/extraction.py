@@ -141,7 +141,7 @@ class EXTRACTORS            (
             '''
             return re.findall(pattern, x)
         @classmethod
-        def TO_HTML         (
+        def FROM_HTML       (
             cls     ,
             r       , 
             c       , 
@@ -155,7 +155,7 @@ class EXTRACTORS            (
             '''
             return etree.tostring(x, encoding='unicode').strip()
         @classmethod
-        def FROM_HTML       (
+        def TO_HTML         (
             cls     ,
             r       , 
             c       , 
@@ -597,8 +597,8 @@ class EXTRACTORS            (
                 possible_params.insert(0, param)
 
             for possible_param in possible_params   :
-                pattern         = f'{possible_param}\w*?[\/=](\d+)'
-                pattern_full    = f'{possible_param}\w*?[\/=]\d+'
+                pattern         = f'{possible_param}'+ r'\w*?[\/=](\d+)'
+                pattern_full    = f'{possible_param}'+ r'\w*?[\/=]\d+'
                 if      len(re.findall(pattern, current_url)):
                     page_number = int(re.findall(pattern, current_url)[0]) 
                     full_match  = re.findall(pattern_full, current_url)[0]
@@ -643,8 +643,8 @@ class ExtractorFunction     (
             Returns:
                 object  : The parsed string as an object.
         '''
-        open_       = slst.ESC_OPEN.replace('(', '\(')
-        close       = slst.ESC_CLOSE.replace(')', '\)')
+        open_       = slst.ESC_OPEN.replace('(', r'\(')
+        close       = slst.ESC_CLOSE.replace(')', r'\)')
         raw_pattern = f'{open_}(.*?){close}'
         raw_value   = g_path(re.findall(raw_pattern, str_),is_return_last=False)
         if      raw_value != None:
@@ -661,7 +661,7 @@ class ExtractorFunction     (
     def _parse_method_type  (
         cls     ,
         str_    ):
-        pattern                         = '^(\*?)(.+?)(?:,(\w+?))?(?::.*)?$$'
+        pattern                         = r'^(\*?)(.+?)(?:,(\w+?))?(?::.*)?$$'
         is_list, method_, source_type_  = re.findall(pattern, str_, re.DOTALL)[0]
         
         is_list = True if is_list == '*' else False
@@ -688,8 +688,8 @@ class ExtractorFunction     (
         str_    ):
         kwargs  = {}
         is_list, method, source_type    = cls._parse_method_type(str_)
-        pattern_kwargs                  = '(?:.*?):(.*)'
-        pattern                         = '(?:([\w*]*?)?=)?(.+?)(?:<->|$)'
+        pattern_kwargs                  = r'(?:.*?):(.*)'
+        pattern                         = r'(?:([\w*]*?)?=)?(.+?)(?:<->|$)'
         kwargs_str                      = re.findall(pattern_kwargs, str_)
 
         if      len(kwargs_str) != 0    :
