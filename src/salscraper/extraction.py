@@ -550,7 +550,7 @@ class EXTRACTORS            (
                 
                 Returns:
                     interface.Request   : The genrated request. 
-            '''
+            ''' 
             if      isinstance(method, str) :
                 method  = getattr(slsi.Method, method)
             if      not url                 :
@@ -772,7 +772,8 @@ class ExtractorCollection   (
         x       ,
         **kwargs):
         start_fn    = self.functions[0]
-        if      c == None       :
+        if      c == None       and \
+                r != None           :
             if      start_fn.source_type == SourceType.CONTEXT  :
                 source_type_    = EXTRACTORS.METHOD_SOURCE_TYPE_MAP.get(start_fn.method.__name__, 'TEXT')
                 source_type_    = getattr(SourceType, source_type_)

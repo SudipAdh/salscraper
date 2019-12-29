@@ -33,7 +33,7 @@ class Request   (
         ('cookies'      , {
             'default': None         }),
         ('session'      , {
-            'default': None         })))
+            'default': None         },),))
 
     def __str__ (
         self    ):

@@ -9,6 +9,7 @@ from    enum                import  Enum
 from    .                   import  export          as  slsx
 from    .                   import  core            as  slsc
 from    .                   import  interface       as  slsi
+from    .                   import  extraction      as  slse
 
 import  saltools.logging    as      sltl
 import  saltools.parallel   as      sltp
@@ -28,6 +29,9 @@ class Scraper   (
             ('data_exporter'    , {
                 'default'   : None          ,
                 'type'      : slsx.Exporter },),
+            ('requests_adapter' , {
+                'default'   : 'REQUEST'         ,
+                'type'      : slse.Extractor    },),
         ))
 
     def _on_stop    (
@@ -43,11 +47,16 @@ class Scraper   (
         self.is_no_tasks_stop   = True
 
         for request in self.start_requests  :
+            request_dict    = {'url': request} if isinstance(request, str) else request
+            request_obj     = self.requests_adapter.extract(
+                None            ,
+                None            ,
+                {}              ,
+                **request_dict  )
             self.start_tasks.append(
                 sltp.FactoryTask(
                     target  = self.execute_request      ,
-                    args    = [
-                        slsi.Request(request) if isinstance(request, str) else slsi.Request(**request)]   ))
+                    args    = [request_obj]   ))
 
         self.n_data             = 0
         self.on_stop            = self._on_stop
