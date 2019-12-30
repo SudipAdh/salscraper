@@ -302,13 +302,14 @@ class Rule          (
                 r_executer  ,
                 parser      ,
                 r_list      ) for b in self.buckets }
-        
+        len_data    = sum(map(len, data.values()))
         requests_noxt, requests_next = self._g_noxt_next(self.requests)
         requests    = []
         for request in requests_noxt+ requests_next :
             if      request in requests_next    and \
                     self.is_stop_empty          and \
-                    len(requests) == 0              :
+                    len(requests)   == 0        and \
+                    len_data        == 0            :
                     break
             x           = request.extract(r, c)
             if      isinstance(x, list) :
