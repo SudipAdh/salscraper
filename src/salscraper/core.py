@@ -151,6 +151,7 @@ class Field         (
         elif    type_ == FieldType.DATETIME_STR :
             try     :
                 value   = cls.FIELD_TYPE_OBJECT_MAP[FieldType.DATETIME](str_).isoformat()
+                value   = value[:19]
             except  :
                 value   = str_
         else                                    :

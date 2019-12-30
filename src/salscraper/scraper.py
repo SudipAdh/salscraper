@@ -55,8 +55,8 @@ class Scraper   (
                 **request_dict  )
             self.start_tasks.append(
                 sltp.FactoryTask(
-                    target  = self.execute_request      ,
-                    args    = [request_obj]   ))
+                    target  = self.execute_request  ,
+                    args    = [request_obj]         ))
 
         self.n_data             = 0
         self.on_stop            = self._on_stop
