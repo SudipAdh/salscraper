@@ -6,6 +6,7 @@ from    enum                import  Enum
 from    .                   import  interface   as slsi
 from    .                   import  extraction  as slse
 from    dateutil.parser     import  parse       as dparse
+from    datetime            import  datetime    as dt
 
 import  saltools.logging    as      sltl
 import  saltools.common     as      sltc
@@ -114,12 +115,13 @@ class Field         (
             'type'      : slse.Extractor    ,
             'default'   : None              }),))
     FIELD_TYPE_OBJECT_MAP   = {
-        FieldType.INTEGER   : lambda x: int(float(x))               ,
-        FieldType.FLOAT     : float                                 ,
-        FieldType.DECIMAL   : Decimal                               ,
-        FieldType.STRING    : str                                   ,
-        FieldType.BOOL      : sltc.EasyObj.DEFAULT_PARSERS[bool]    ,
-        FieldType.DATETIME  : lambda x : dparse(x,fuzzy= True)      }
+            FieldType.INTEGER   : lambda x: int(float(x))               ,
+            FieldType.FLOAT     : float                                 ,
+            FieldType.DECIMAL   : Decimal                               ,
+            FieldType.STRING    : str                                   ,
+            FieldType.BOOL      : sltc.EasyObj.DEFAULT_PARSERS[bool]    ,
+            FieldType.DATETIME  : sltc.EasyObj.DEFAULT_PARSERS[dt]      ,
+        }
     
     @classmethod
     def _parse_value (
