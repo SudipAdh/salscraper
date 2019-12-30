@@ -9,7 +9,7 @@ from    saltools.web        import  do_request
 from    saltools.common     import  EasyObj
 from    urllib.parse        import  urlparse
 from    collections         import  OrderedDict
-from    lxml.html           import  fromstring  , clean
+from    lxml.html           import  fromstring
 
 import  pickle
 import  json
@@ -99,8 +99,7 @@ class Response  (
         uri         = urlparse(self.request_url)
         self.host   = f'{uri.scheme}://{uri.netloc}'
         try         :
-            cleaner     = clean.Cleaner(style=True)
-            r.html_tree = cleaner.clean_html(fromstring(self.text))
+            self.html_tree  = fromstring(self.text)
         except      :
             self.html_tree  = None 
         try         :
