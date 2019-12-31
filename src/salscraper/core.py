@@ -20,14 +20,15 @@ class FieldType (
     Enum    ):
     '''Field type.
     '''
-    INTEGER         = 0
-    FLOAT           = 1
-    DECIMAL         = 3
-    STRING          = 4
-    BOOL            = 5
-    DATETIME        = 6
-    DATETIME_STR    = 7
-    REQUEST         = 8
+    INTEGER             = 0
+    FLOAT               = 1
+    DECIMAL             = 3
+    STRING              = 4
+    BOOL                = 5
+    DATETIME            = 6
+    DATETIME_STR        = 7
+    DATETIME_STR_END    = 8
+    REQUEST             = 9
 
 class ContainerBase (
     sltc.EasyObj    ):
@@ -142,19 +143,25 @@ class Field         (
         if      str_ in [None, '']  :
             return None
         value   = None
-        if      type_ == FieldType.REQUEST      :
+        if      type_ == FieldType.REQUEST          :
             if      not isinstance(str_, list)  :
                 str_    = [str_]
             for x in str_   :
                 assert isinstance(x, slsi.Request), 'Value returned by extractor is not of type REQUEST'
             value   = str_        
-        elif    type_ == FieldType.DATETIME_STR :
+        elif    type_ == FieldType.DATETIME_STR     :
             try     :
                 value   = cls.FIELD_TYPE_OBJECT_MAP[FieldType.DATETIME](str_).isoformat()
                 value   = value[:19]
             except  :
                 value   = str_
-        else                                    :
+        elif    type_ == FieldType.DATETIME_STR_END :
+            try     :
+                value   = cls.FIELD_TYPE_OBJECT_MAP[FieldType.DATETIME](str_, False).isoformat()
+                value   = value[:19]
+            except  :
+                value   = str_
+        else                                        :
             try     :
                 value   = cls.FIELD_TYPE_OBJECT_MAP[type_](str_)
             except  :
