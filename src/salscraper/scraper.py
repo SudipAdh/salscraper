@@ -79,7 +79,8 @@ class Scraper   (
             self.data_exporter.export       )
         
         for request in r_list :
-            self.tasks_queue.put(
-                sltp.FactoryTask(
-                    target  = self.execute_request  ,
-                    args    = [request]             ))
+            if      request != None :
+                self.tasks_queue.put(
+                    sltp.FactoryTask(
+                        target  = self.execute_request  ,
+                        args    = [request]             ))
