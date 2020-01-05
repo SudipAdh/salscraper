@@ -44,6 +44,8 @@ class Project(
         path    = os.path.join(
             os.path.dirname(script_path)    ,
             '__custom_extractors.py'        )
+        if      not os.path.isfile(path) :
+            return
         custom_exts, name   = sltm.load_module(path)
         for ext_name in dir(custom_exts.EXTRACTORS):
             if      callable(getattr(custom_exts.EXTRACTORS, ext_name))     and \
