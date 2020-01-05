@@ -592,7 +592,7 @@ class EXTRACTORS            (
             possible_params = ['page', 'page_number', 'pg', 'p', '']
             page_number     = None
             full_match      = None
-            current_url     = x if isinstance(x, str) else r.request_url 
+            current_url     = x if isinstance(x, str) else r.request_url
 
             if      param != None   :
                 possible_params.insert(0, param)
