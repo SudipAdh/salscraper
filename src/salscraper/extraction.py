@@ -69,6 +69,7 @@ class EXTRACTORS            (
             'rs'    : 'RESOURCE'        ,
             'st'    : 'STRIP'           ,
             ' '     : 'NONE'            ,
+            'pr'    : 'NONE'            ,
 
             '@'     : 'REQUEST'         ,
             'n'     : 'NEXT_PAGE'       ,
@@ -214,6 +215,8 @@ class EXTRACTORS            (
                 Returns:
                     dict    : A dict object.
             '''
+            x   = x.replace('\n', '')
+            x   = re.sub(',\s+,', ', ', x)
             return json.loads(x)
         @classmethod
         def OBJ_PATH        (
@@ -459,7 +462,14 @@ class EXTRACTORS            (
                     object  :  The same object.
             '''
             return x
-
+        @classmethod
+        def PRINT           (
+            cls         ,
+            r           ,
+            c           ,
+            x           ):
+            print(x)
+            return x
     #----------------------------------------
     # Buckets extractors
     #----------------------------------------
