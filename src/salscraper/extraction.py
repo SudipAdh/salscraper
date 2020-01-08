@@ -16,7 +16,7 @@ import  saltools.misc       as      sltm
 import  saltools.common     as      sltc
 
 import  inspect
-import  json
+import  yaml
 import  html
 import  re
 
@@ -215,9 +215,8 @@ class EXTRACTORS            (
                 Returns:
                     dict    : A dict object.
             '''
-            x   = x.replace('\n', '')
-            x   = re.sub(',\s+,', ', ', x)
-            return json.loads(x)
+            x   = re.sub(',\s+,', ',', x)
+            return yaml.load(x, yaml.Loader)
         @classmethod
         def OBJ_PATH        (
             cls                     ,
