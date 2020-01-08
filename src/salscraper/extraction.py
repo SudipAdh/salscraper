@@ -69,7 +69,7 @@ class EXTRACTORS            (
                 'rs'    : 'RESOURCE'        ,
                 'st'    : 'STRIP'           ,
                 ' '     : 'NONE'            ,
-                'pr'    : 'NONE'            ,
+                'pr'    : 'PRINT'           ,
                 '1'     : 'FIRST'           ,
 
                 '@'     : 'REQUEST'         ,
@@ -491,9 +491,11 @@ class EXTRACTORS            (
                 Returns:
                     object  :  The first not `None` object.
             '''
+            e   = None
             for e in x :
                 if      e != None   :
-                    return e
+                    break
+            return e
     #----------------------------------------
     # Buckets extractors
     #----------------------------------------
