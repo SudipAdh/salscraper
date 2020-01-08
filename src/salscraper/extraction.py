@@ -47,35 +47,37 @@ class EXTRACTORS            (
             'FROM_JSON' : 'TEXT'            ,
             }
         ABREV_METHOD_MAP        = {
-            '='     : 'EQUALS'          ,
-            'x'     : 'XPATH'           ,
-            'r'     : 'REGEX'           ,
-            's'     : 'FROM_HTML'       ,
-            'h'     : 'TO_HTML'         ,
-            '?'     : 'REPLACE'         ,
-            'l'     : 'IN_LIST'         ,
-            'j'     : 'FROM_JSON'       ,
-            '!'     : 'FILTER'          ,
-            'a'     : 'ABS_URL'         ,
-            '_'     : 'JOIN_STRS'       ,
-            'p'     : 'OBJ_PATH'        ,
-            'f'     : 'FORMAT'          ,
-            '/'     : 'SLICE'           ,
-            'u'     : 'UNESCAPE_HTML'   ,
-            'd'     : 'TO_DICT'         ,
-            'o'     : 'ARTHM'           ,
-            '>'     : 'UPPER'           ,
-            '<'     : 'LOWER'           ,
-            'rs'    : 'RESOURCE'        ,
-            'st'    : 'STRIP'           ,
-            ' '     : 'NONE'            ,
-            'pr'    : 'NONE'            ,
+                '='     : 'EQUALS'          ,
+                'x'     : 'XPATH'           ,
+                'r'     : 'REGEX'           ,
+                's'     : 'FROM_HTML'       ,
+                'h'     : 'TO_HTML'         ,
+                '?'     : 'REPLACE'         ,
+                'l'     : 'IN_LIST'         ,
+                'j'     : 'FROM_JSON'       ,
+                '!'     : 'FILTER'          ,
+                'a'     : 'ABS_URL'         ,
+                '_'     : 'JOIN_STRS'       ,
+                'p'     : 'OBJ_PATH'        ,
+                'f'     : 'FORMAT'          ,
+                '/'     : 'SLICE'           ,
+                'u'     : 'UNESCAPE_HTML'   ,
+                'd'     : 'TO_DICT'         ,
+                'o'     : 'ARTHM'           ,
+                '>'     : 'UPPER'           ,
+                '<'     : 'LOWER'           ,
+                'rs'    : 'RESOURCE'        ,
+                'st'    : 'STRIP'           ,
+                ' '     : 'NONE'            ,
+                'pr'    : 'NONE'            ,
+                '1'     : 'FIRST'           ,
 
-            '@'     : 'REQUEST'         ,
-            'n'     : 'NEXT_PAGE'       ,
+                '@'     : 'REQUEST'         ,
+                'n'     : 'NEXT_PAGE'       ,
 
-            'bf'    : 'B_FLATTEN'       ,
-            'bm'    : 'B_MULTIPLY'      }
+                'bf'    : 'B_FLATTEN'       ,
+                'bm'    : 'B_MULTIPLY'      ,
+            }
         ABREV_SOURCE_MAP        = {
             'q' : 'REQUEST_URL'     ,
             's' : 'RESPONSE_URL'    ,
@@ -467,8 +469,31 @@ class EXTRACTORS            (
             r           ,
             c           ,
             x           ):
+            '''Prints `x` to the console, use for debuging.
+
+                Args:
+                    x   (object ): An object.
+                Returns:
+                    object  :  The same object `x`.
+            '''
             print(x)
             return x
+        @classmethod
+        def FIRST           (
+            cls         ,
+            r           ,
+            c           ,
+            x           ):
+            '''Returns the element from a list that is not `None`.
+
+                Args:
+                    x   (list   ): A list.
+                Returns:
+                    object  :  The first not `None` object.
+            '''
+            for e in x :
+                if      e != None   :
+                    return e
     #----------------------------------------
     # Buckets extractors
     #----------------------------------------
