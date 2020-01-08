@@ -365,7 +365,7 @@ class Parser        (
 
         assert rule_found, 'No rule is found for the given response.'
         
-        if      exporter    :
+        if      exporter and len(data) :
             exporter(data)
         
         return data
