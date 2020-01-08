@@ -491,11 +491,12 @@ class EXTRACTORS            (
                 Returns:
                     object  :  The first not `None` object.
             '''
-            e   = None
+            first   = None
             for e in x :
                 if      e != None   :
+                    first   = e
                     break
-            return e
+            return first
     #----------------------------------------
     # Buckets extractors
     #----------------------------------------
