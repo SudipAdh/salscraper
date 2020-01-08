@@ -226,7 +226,8 @@ class EXTRACTORS            (
             c                       ,
             x                       ,
             path            = 0     ,
-            is_return_last  = False ):
+            is_return_last  = False ,
+            is_check_only   = False ):
             '''Gets the value at the given path.
 
                 Args:
@@ -240,7 +241,11 @@ class EXTRACTORS            (
                 Returns:
                     object  : The value found at the given path.
             '''
-            return g_path(x, path, is_return_last= is_return_last)
+            result  = g_path(x, path, is_return_last= is_return_last)
+            if      is_check_only   :
+                return true if result != None else False
+            else                    :
+                return result
         @classmethod
         def FILTER          (
             cls             ,
