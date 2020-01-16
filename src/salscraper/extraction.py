@@ -16,7 +16,7 @@ import  saltools.misc       as      sltm
 import  saltools.common     as      sltc
 
 import  inspect
-import  json
+import  yaml
 import  html
 import  re
 
@@ -47,6 +47,7 @@ class EXTRACTORS            (
             'FROM_JSON' : 'TEXT'            ,
             }
         ABREV_METHOD_MAP        = {
+<<<<<<< HEAD
             '='     : 'EQUALS'          ,
             'x'     : 'XPATH'           ,
             'r'     : 'REGEX'           ,
@@ -76,6 +77,39 @@ class EXTRACTORS            (
 
             'bf'    : 'B_FLATTEN'       ,
             'bm'    : 'B_MULTIPLY'      }
+=======
+                '='     : 'EQUALS'          ,
+                'x'     : 'XPATH'           ,
+                'r'     : 'REGEX'           ,
+                's'     : 'FROM_HTML'       ,
+                'h'     : 'TO_HTML'         ,
+                '?'     : 'REPLACE'         ,
+                'l'     : 'IN_LIST'         ,
+                'j'     : 'FROM_JSON'       ,
+                '!'     : 'FILTER'          ,
+                'a'     : 'ABS_URL'         ,
+                '_'     : 'JOIN_STRS'       ,
+                'p'     : 'OBJ_PATH'        ,
+                'f'     : 'FORMAT'          ,
+                '/'     : 'SLICE'           ,
+                'u'     : 'UNESCAPE_HTML'   ,
+                'd'     : 'TO_DICT'         ,
+                'o'     : 'ARTHM'           ,
+                '>'     : 'UPPER'           ,
+                '<'     : 'LOWER'           ,
+                'rs'    : 'RESOURCE'        ,
+                'st'    : 'STRIP'           ,
+                ' '     : 'NONE'            ,
+                'pr'    : 'PRINT'           ,
+                '1'     : 'FIRST'           ,
+
+                '@'     : 'REQUEST'         ,
+                'n'     : 'NEXT_PAGE'       ,
+
+                'bf'    : 'B_FLATTEN'       ,
+                'bm'    : 'B_MULTIPLY'      ,
+            }
+>>>>>>> ee20592d72e16eea0d01c41d5e44bf5e62345d8b
         ABREV_SOURCE_MAP        = {
             'q' : 'REQUEST_URL'     ,
             's' : 'RESPONSE_URL'    ,
@@ -215,7 +249,8 @@ class EXTRACTORS            (
                 Returns:
                     dict    : A dict object.
             '''
-            return json.loads(x)
+            x   = re.sub(',\s+,', ',', x)
+            return yaml.load(x, yaml.Loader)
         @classmethod
         def OBJ_PATH        (
             cls                     ,
@@ -223,7 +258,8 @@ class EXTRACTORS            (
             c                       ,
             x                       ,
             path            = 0     ,
-            is_return_last  = False ):
+            is_return_last  = False ,
+            is_check_only   = False ):
             '''Gets the value at the given path.
 
                 Args:
@@ -237,7 +273,11 @@ class EXTRACTORS            (
                 Returns:
                     object  : The value found at the given path.
             '''
-            return g_path(x, path, is_return_last= is_return_last)
+            result  = g_path(x, path, is_return_last= is_return_last)
+            if      is_check_only   :
+                return true if result != None else False
+            else                    :
+                return result
         @classmethod
         def FILTER          (
             cls             ,
@@ -460,7 +500,55 @@ class EXTRACTORS            (
                     object  :  The same object.
             '''
             return x
+        @classmethod
+        def PRINT           (
+            cls         ,
+            r           ,
+            c           ,
+            x           ):
+            '''Prints `x` to the console, use for debuging.
 
+                Args:
+                    x   (object ): An object.
+                Returns:
+                    object  :  The same object `x`.
+            '''
+            print(x)
+            return x
+        @classmethod
+        def FIRST           (
+            cls         ,
+            r           ,
+            c           ,
+            x           ):
+            '''Returns the element from a list that is not `None`.
+
+                Args:
+                    x   (list   ): A list.
+                Returns:
+                    object  :  The first not `None` object.
+            '''
+            first   = None
+            for e in x :
+                if      e not in [None, ''] :
+                    first   = e
+                    break
+            return first
+        @classmethod
+        def BOOL        (
+            cls ,
+            r   , 
+            c   , 
+            x   ,
+            y   ):
+            '''`True` if x is not `None`, otherwise `False`.
+                
+                Args:
+                    x       (object ): Any `object`.
+                Returns:
+                    Bool    : True if `x` exists.
+            '''
+            return True if x != None else False
     #----------------------------------------
     # Buckets extractors
     #----------------------------------------
@@ -543,21 +631,6 @@ class EXTRACTORS            (
             buckets[new_name]   = new_list
             
             return buckets
-        @classmethod
-        def BOOL        (
-            cls ,
-            r   , 
-            c   , 
-            x   ,
-            y   ):
-            '''`True` if x is not `None`, otherwise `False`.
-                
-                Args:
-                    x       (object ): Any `object`.
-                Returns:
-                    Bool    : True if `x` exists.
-            '''
-            return True if x != None else False
     #----------------------------------------
     # Requests extractors
     #----------------------------------------
@@ -607,7 +680,7 @@ class EXTRACTORS            (
             possible_params = ['page', 'page_number', 'pg', 'p', '']
             page_number     = None
             full_match      = None
-            current_url     = x if isinstance(x, str) else r.request_url 
+            current_url     = x if isinstance(x, str) else r.request_url
 
             if      param != None   :
                 possible_params.insert(0, param)

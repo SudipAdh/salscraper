@@ -131,7 +131,6 @@ class TestBucket    (
                 b_A1.fields[1].extractor.collections[0]     \
                     .functions[0].kwargs                    == {'path': 0 }             and \
                 b_A1.is_skip_None                           == True
-        
         assert  b_A2.fields[0].id_                          == 'F1'                     and \
                 b_A2.fields[0].extractor.collections[0]     \
                     .functions[0].method                    == slse.EXTRACTORS.XPATH    and \

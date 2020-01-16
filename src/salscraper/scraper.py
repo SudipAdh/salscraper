@@ -48,15 +48,18 @@ class Scraper   (
 
         for request in self.start_requests  :
             request_dict    = {'url': request} if isinstance(request, str) else request
-            request_obj     = self.requests_adapter.extract(
+            adapted_req     = self.requests_adapter.extract(
                 None            ,
                 None            ,
                 {}              ,
                 **request_dict  )
-            self.start_tasks.append(
-                sltp.FactoryTask(
-                    target  = self.execute_request  ,
-                    args    = [request_obj]         ))
+            if      not isinstance(adapted_req, list)   :
+                adapted_req = [adapted_req]
+            for request_obj in adapted_req  :
+                self.start_tasks.append(
+                    sltp.FactoryTask(
+                        target  = self.execute_request  ,
+                        args    = [request_obj]         ))
 
         self.n_data             = 0
         self.on_stop            = self._on_stop
