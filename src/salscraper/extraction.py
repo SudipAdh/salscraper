@@ -69,6 +69,7 @@ class EXTRACTORS            (
             'rs'    : 'RESOURCE'        ,
             'st'    : 'STRIP'           ,
             ' '     : 'NONE'            ,
+            'b'     : 'TO_BOOL'         ,
 
             '@'     : 'REQUEST'         ,
             'n'     : 'NEXT_PAGE'       ,
@@ -542,7 +543,21 @@ class EXTRACTORS            (
             buckets[new_name]   = new_list
             
             return buckets
-
+        @classmethod
+        def BOOL        (
+            cls ,
+            r   , 
+            c   , 
+            x   ,
+            y   ):
+            '''`True` if x is not `None`, otherwise `False`.
+                
+                Args:
+                    x       (object ): Any `object`.
+                Returns:
+                    Bool    : True if `x` exists.
+            '''
+            return True if x != None else False
     #----------------------------------------
     # Requests extractors
     #----------------------------------------
