@@ -76,7 +76,7 @@ class EXTRACTORS            (
 
             'bf'    : 'B_FLATTEN'       ,
             'bm'    : 'B_MULTIPLY'      }
-            
+
         ABREV_SOURCE_MAP        = {
             'q' : 'REQUEST_URL'     ,
             's' : 'RESPONSE_URL'    ,
@@ -242,7 +242,7 @@ class EXTRACTORS            (
             '''
             result  = g_path(x, path, is_return_last= is_return_last)
             if      is_check_only   :
-                return true if result != None else False
+                return True if result != None else False
             else                    :
                 return result
         @classmethod
@@ -502,7 +502,7 @@ class EXTRACTORS            (
                     break
             return first
         @classmethod
-        def BOOL        (
+        def TO_BOOL         (
             cls ,
             r   , 
             c   , 
