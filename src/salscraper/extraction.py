@@ -506,8 +506,7 @@ class EXTRACTORS            (
             cls ,
             r   , 
             c   , 
-            x   ,
-            y   ):
+            x   ):
             '''`True` if x is not `None`, otherwise `False`.
                 
                 Args:
