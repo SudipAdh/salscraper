@@ -47,7 +47,6 @@ class EXTRACTORS            (
             'FROM_JSON' : 'TEXT'            ,
             }
         ABREV_METHOD_MAP        = {
-<<<<<<< HEAD
             '='     : 'EQUALS'          ,
             'x'     : 'XPATH'           ,
             'r'     : 'REGEX'           ,
@@ -77,39 +76,7 @@ class EXTRACTORS            (
 
             'bf'    : 'B_FLATTEN'       ,
             'bm'    : 'B_MULTIPLY'      }
-=======
-                '='     : 'EQUALS'          ,
-                'x'     : 'XPATH'           ,
-                'r'     : 'REGEX'           ,
-                's'     : 'FROM_HTML'       ,
-                'h'     : 'TO_HTML'         ,
-                '?'     : 'REPLACE'         ,
-                'l'     : 'IN_LIST'         ,
-                'j'     : 'FROM_JSON'       ,
-                '!'     : 'FILTER'          ,
-                'a'     : 'ABS_URL'         ,
-                '_'     : 'JOIN_STRS'       ,
-                'p'     : 'OBJ_PATH'        ,
-                'f'     : 'FORMAT'          ,
-                '/'     : 'SLICE'           ,
-                'u'     : 'UNESCAPE_HTML'   ,
-                'd'     : 'TO_DICT'         ,
-                'o'     : 'ARTHM'           ,
-                '>'     : 'UPPER'           ,
-                '<'     : 'LOWER'           ,
-                'rs'    : 'RESOURCE'        ,
-                'st'    : 'STRIP'           ,
-                ' '     : 'NONE'            ,
-                'pr'    : 'PRINT'           ,
-                '1'     : 'FIRST'           ,
-
-                '@'     : 'REQUEST'         ,
-                'n'     : 'NEXT_PAGE'       ,
-
-                'bf'    : 'B_FLATTEN'       ,
-                'bm'    : 'B_MULTIPLY'      ,
-            }
->>>>>>> ee20592d72e16eea0d01c41d5e44bf5e62345d8b
+            
         ABREV_SOURCE_MAP        = {
             'q' : 'REQUEST_URL'     ,
             's' : 'RESPONSE_URL'    ,
