@@ -789,8 +789,6 @@ class ExtractorFunction     (
                 'self.source_type'  ,
                 'self.is_list'      ,
                 'r'                 ,
-                'c'                 ,
-                'x'                 ,
             ]               )
     def extract             (
         self        , 
