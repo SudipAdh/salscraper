@@ -69,6 +69,7 @@ class EXTRACTORS            (
             'rs'    : 'RESOURCE'        ,
             'st'    : 'STRIP'           ,
             ' '     : 'NONE'            ,
+            '1'     : 'FIRST'           ,
             'b'     : 'TO_BOOL'         ,
 
             '@'     : 'REQUEST'         ,
