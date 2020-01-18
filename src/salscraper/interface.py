@@ -26,14 +26,21 @@ class Request   (
     EasyObj_PARAMS  = OrderedDict((
         ('url'          , {}),
         ('method'       , {
-            'type'      : Method        ,
-            'default'   : Method.GET    }),
+                'type'      : Method        ,
+                'default'   : Method.GET    ,
+            }),
         ('params'       , {
-            'default': {}           }),
+                'default': {}   ,
+            }),
         ('cookies'      , {
-            'default': None         }),
+                'default': None ,
+            }),
+        ('headers'      , {
+                'default': None ,
+            }),
         ('session'      , {
-            'default': None         },),))
+                'default': None ,
+            }),))
 
     def __str__ (
         self    ):
@@ -46,6 +53,9 @@ class Request   (
         self    ):
         uri         = urlparse(self.url)
         self.host   = f'{uri.scheme}://{uri.netloc}'
+
+        if      self.headers == None    :
+            self.headers    = Interface.HEADERS
 class Response  (
     EasyObj ):
     ''' A server response.
@@ -59,6 +69,7 @@ class Response  (
         ('text'         , {}        ),
         ('is_redirect'  , {}        ),
         ('cookies'      , {}        ),
+        ('headers'      , {}        ),
         ('session'      , {}        )))
     
     @classmethod
@@ -140,27 +151,28 @@ class Requests  (
         self    , 
         request ):
         if      isinstance(request, str)        :
-            request     = Request(url= request) 
+            request     = Request(url= request)
+
         if      request.method == Method.GET    :
             r, session = do_request(
-                request.url             , 
-                request.params          , 
-                headers = self.HEADERS  ,
-                timeout = self.timeout  )
+                request.url                 , 
+                request.params              , 
+                headers = request.headers   ,
+                timeout = self.timeout      )
         elif    request.method == Method.POST   :
             r, session = do_request(
-                request.url             , 
-                request.params          ,
-                is_post = True          ,
-                headers = self.HEADERS  ,
-                timeout = self.timeout  )
+                request.url                 , 
+                request.params              ,
+                is_post = True              ,
+                headers = request.headers   ,
+                timeout = self.timeout      )
         elif    request.method == Method.JSON   :
             r, session = do_request(
-                request.url             ,
-                request.params          ,
-                is_json = True          ,
-                headers = self.HEADERS  ,
-                timeout = self.timeout  )
+                request.url                 ,
+                request.params              ,
+                is_json = True              ,
+                headers = request.headers   ,
+                timeout = self.timeout      )
         return Response(
             response_url= r.url         ,
             request_obj = request       ,
@@ -170,4 +182,5 @@ class Requests  (
             text        = r.text        ,
             is_redirect = r.is_redirect ,
             cookies     = r.cookies     ,
+            headers     = r.headers     ,
             session     = session       )

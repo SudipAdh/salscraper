@@ -8,9 +8,13 @@ import  saltools.misc       as      sltm
 import  saltools.common     as      sltc
 import  saltools.logging    as      sltl
 
+import  csv
+import  os
+
 class ExporterType(Enum):
     SQLALCHEMY  = 0
     PPRINT      = 1
+    CSV         = 2
 
 class Exporter(sltc.EasyObj):
     EasyObj_PARAMS  = OrderedDict((
@@ -74,6 +78,29 @@ class Exporter(sltc.EasyObj):
         engine  = None  , 
         path    = None  ):
         pprint(data)
+    
+    @classmethod
+    @sltl.handle_exception  (
+        is_log_start= True  ,
+        params_start= None  )
+    def export_csv          (
+        cls             ,
+        data            ,
+        engine  = None  , 
+        path    = None  ):
+        for key, value in data.items():
+            if      path == None        :
+                path    = f'{key}.csv'
+            elif    os.path.isdir(path) :
+                path    = os.path.join(path, f'{key}.csv')
+
+            w_headers   = not os.path.isfile(path)
+            headers     = value[0].keys()
+            with open(path, 'a', newline= '\n') as f :  
+                writer  = csv.DictWriter(f, fieldnames=headers)
+                if      w_headers   :
+                    writer.writeheader()
+                writer.writerows(value)
     
     def export  (
         self    ,

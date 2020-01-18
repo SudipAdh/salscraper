@@ -216,7 +216,7 @@ class EXTRACTORS            (
                 Returns:
                     dict    : A dict object.
             '''
-            x   = re.sub(',\s+,', ',', x)
+            x   = re.sub(r',\s+,', ',', x)
             return yaml.load(x, yaml.Loader)
         @classmethod
         def OBJ_PATH        (
