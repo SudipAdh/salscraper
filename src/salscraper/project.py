@@ -85,6 +85,7 @@ class Project(
     def run_scraper     (
         cls             ,
         path            ,
+        url             ,
         is_join = True  ):
         cls._load_customs(path)
         settings    = sltm.g_config(os.path.join(
@@ -96,6 +97,9 @@ class Project(
         elif    path.split('.')[-1] == 'py'     :
             scraper, name   = cls._g_py(path)
         
+        if      url != None :
+            scraper.start_tasks.clear()
+            scraper.add_request(url)
         
         cls._start_scraper(
             name        ,
@@ -126,7 +130,7 @@ class Project(
                 sltp.FactoryTask(
                     id_         = os.path.split(path)[-1]   ,
                     target      = type(self).run_scraper    ,
-                    args        = [path, False]             ,
+                    args        = [path, None, False]       ,
                     is_process  = True                      ) for path in paths
             ]
         

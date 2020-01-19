@@ -34,37 +34,43 @@ class Scraper   (
                 'type'      : slse.Extractor    },),
         ))
 
-    def _on_stop    (
+    def _on_stop        (
         self    ,
         factory ):
         self.n_data = 0
-    def _on_start   (
+    def _on_start       (
         self    ,
         factory ):
         pass
-    def _on_init    (
+    
+    def _on_init        (
         self    ):
         self.is_no_tasks_stop   = True
 
         for request in self.start_requests  :
-            request_dict    = {'url': request} if isinstance(request, str) else request
-            adapted_req     = self.requests_adapter.extract(
-                None            ,
-                None            ,
-                {}              ,
-                **request_dict  )
-            if      not isinstance(adapted_req, list)   :
-                adapted_req = [adapted_req]
-            for request_obj in adapted_req  :
-                self.start_tasks.append(
-                    sltp.FactoryTask(
-                        target  = self.execute_request  ,
-                        args    = [request_obj]         ))
+            self.add_request(request)
 
         self.n_data             = 0
         self.on_stop            = self._on_stop
         self.on_start           = self._on_start
+    
+    def add_request     (
+        self            ,
+        request         ):
+        request_dict    = {'url': request} if isinstance(request, str) else request
+        adapted_req     = self.requests_adapter.extract(
+            None            ,
+            None            ,
+            {}              ,
+            **request_dict  )
+        if      not isinstance(adapted_req, list)   :
+                adapted_req = [adapted_req]
 
+        for request_obj in adapted_req  :
+            self.start_tasks.append(
+                sltp.FactoryTask(
+                    target  = self.execute_request  ,
+                    args    = [request_obj]         ))
     @sltl.handle_exception  (
         sltl.Level.ERROR            ,
         is_log_start= True          ,
