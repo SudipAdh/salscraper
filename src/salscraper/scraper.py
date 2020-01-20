@@ -42,7 +42,6 @@ class Scraper   (
         self    ,
         factory ):
         pass
-    
     def _on_init        (
         self    ):
         self.is_no_tasks_stop   = True
