@@ -11,9 +11,12 @@ import  saltools.common     as      sltc
 import  saltools.files      as      sltf
 
 import  importlib.util
+import  subprocess
+import  traceback
 import  string
 import  random
 import  json
+import  sys
 import  os
 
 class Project(
@@ -83,7 +86,16 @@ class Project(
             scraper.join_exit()
     
     @classmethod
-    def run_scraper     (
+    def run_scraper_subp    (
+        cls     ,
+        path    ):
+        try :
+            cmd = f'{sys.executable} -m salscraper {path}'
+            subprocess.call(cmd, shell=True)
+        except Exception as e :
+            print(traceback.format_exc())
+    @classmethod
+    def run_scraper         (
         cls             ,
         path            ,
         url     = None  ,
@@ -108,7 +120,7 @@ class Project(
                 settings    ,
                 is_join     )
         except Exception as e:
-            print(e)
+            print(traceback.format_exc())
     
     def _on_init        (
         self    ):
@@ -131,10 +143,10 @@ class Project(
         paths   = [os.path.abspath(x) for x in paths]
         return  [
                 sltp.FactoryTask(
-                    id_         = os.path.split(path)[-1]   ,
-                    target      = type(self).run_scraper    ,
-                    args        = [path, None, False]       ,
-                    is_process  = True                      ) for path in paths
+                    id_         = os.path.split(path)[-1]       ,
+                    target      = type(self).run_scraper_subp   ,
+                    args        = [path]                        ,
+                    is_process  = True                          ) for path in paths
             ]
         
 
