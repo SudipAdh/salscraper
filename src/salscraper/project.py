@@ -65,10 +65,11 @@ class Project(
                     'type'      : 'ConsoleLogger'   ,
                     'kwargs'    : {}                ,
                 }
-            default_logger      = settings.get('default_logger', default_logger_dict)
+            default_logger                  = settings.get('default_logger', default_logger_dict)
+            default_logger['kwargs']['id_'] =  name
+
             default_logger      = getattr(sltl, default_logger['type'])(**default_logger['kwargs'])
-            prefix              = dt.utcnow().isoformat()
-            default_logger.id_  = f'{name}-{prefix}'
+
             return default_logger
         
         if      scraper.logger        == None   :
@@ -85,7 +86,7 @@ class Project(
     def run_scraper     (
         cls             ,
         path            ,
-        url             ,
+        url     = None  ,
         is_join = True  ):
         cls._load_customs(path)
         settings    = sltm.g_config(os.path.join(
@@ -100,12 +101,14 @@ class Project(
         if      url != None :
             scraper.start_tasks.clear()
             scraper.add_request(url)
-        
-        cls._start_scraper(
-            name        ,
-            scraper     ,
-            settings    ,
-            is_join     )
+        try     :
+            cls._start_scraper(
+                name        ,
+                scraper     ,
+                settings    ,
+                is_join     )
+        except Exception as e:
+            print(e)
     
     def _on_init        (
         self    ):
