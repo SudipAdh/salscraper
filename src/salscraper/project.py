@@ -22,10 +22,25 @@ import  os
 class Project(
     sltp.NiceFactory    ):
     EasyObj_PARAMS  = OrderedDict((
-        ('root_dir' , { }),))
+            ('root_dir'         , {
+                    'type'  : str   ,
+                }),
+            ('settings_path'    ,{
+                    'type'      : str   ,
+                    'default'   : None  ,
+                }),
+        ))
     
     @classmethod
-    def _g_json         (
+    def _g_settings_path    (
+        cls             ,
+        path            ,
+        settings_path   ):
+        return settings_path if settings_path != None else os.path.join(
+            os.path.dirname(path)   ,
+            '__settings.json'       )
+    @classmethod
+    def _g_json             (
         cls     ,
         path    ):
         name        = os.path.split(path)[-1][:-5]
@@ -35,13 +50,13 @@ class Project(
             scraper.logger  = sltc.EasyObj.select_type(**json_dict['logger'])
         return scraper, name
     @classmethod
-    def _g_py           (
+    def _g_py               (
         cls     ,
         path    ):
         module, name    = sltm.load_module(path)
         return  module.g_scraper(), name
     @classmethod
-    def _load_customs   (
+    def _load_customs       (
         cls         ,
         script_path ):
         path    = os.path.join(
@@ -55,7 +70,7 @@ class Project(
                     not ext_name.startswith('__')                               :
                 setattr(slse.EXTRACTORS, ext_name, getattr(custom_exts.EXTRACTORS, ext_name))   
     @classmethod
-    def _start_scraper  (
+    def _start_scraper      (
         cls                 ,
         name                ,
         scraper             ,
@@ -87,23 +102,24 @@ class Project(
     
     @classmethod
     def run_scraper_subp    (
-        cls     ,
-        path    ):
+        cls             ,
+        path            ,
+        settings_path   ):
         try :
-            cmd = f'{sys.executable} -m salscraper {path}'
+            cmd = f'{sys.executable} -m salscraper {path} -s {settings_path}'
             subprocess.call(cmd, shell=True)
         except Exception as e :
             print(traceback.format_exc())
     @classmethod
     def run_scraper         (
-        cls             ,
-        path            ,
-        url     = None  ,
-        is_join = True  ):
+        cls                     ,
+        path                    ,
+        url             = None  ,
+        settings_path   = None  ,
+        is_join         = True  ):
         cls._load_customs(path)
-        settings    = sltm.g_config(os.path.join(
-            os.path.dirname(path)   ,
-            '__settings.json'       ))
+        settings_path   = cls._g_settings_path(path, settings_path)
+        settings        = sltm.g_config(settings_path)
 
         if      path.split('.')[-1] == 'json'   :
             scraper, name   = cls._g_json(path)
@@ -113,6 +129,7 @@ class Project(
         if      url != None :
             scraper.start_tasks.clear()
             scraper.add_request(url)
+            scraper.is_single_request   = True
         try     :
             cls._start_scraper(
                 name        ,
@@ -140,12 +157,13 @@ class Project(
             False                       ,
             False                       )
         
-        paths   = [os.path.abspath(x) for x in paths]
+        settings_path   = type(self)._g_settings_path(self.root_dir, self.settings_path)
+        paths           = [os.path.abspath(x) for x in paths]
         return  [
                 sltp.FactoryTask(
                     id_         = os.path.split(path)[-1]       ,
                     target      = type(self).run_scraper_subp   ,
-                    args        = [path]                        ,
+                    args        = [path, settings_path]         ,
                     is_process  = True                          ) for path in paths
             ]
         

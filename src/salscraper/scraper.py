@@ -19,22 +19,31 @@ import  queue
 class Scraper   (
     sltp.NiceFactory    ):
     EasyObj_PARAMS  = OrderedDict((
-            ('start_requests'   , {
+            ('start_requests'       , {
                 },),
-            ('parser'           , {
-                'type'  : slsc.Parser   },),
-            ('interface'        , {
-                'type'      : slsi.Interface    ,
-                'default'   : slsi.Requests()   },),
-            ('data_exporter'    , {
-                'default'   : None          ,
-                'type'      : slsx.Exporter },),
-            ('requests_adapter' , {
-                'default'   : 'REQUEST'         ,
-                'type'      : slse.Extractor    },),
-            ('revision_date'    , {
-                'default'   : ''    ,
-                'type'      : str   },),
+            ('parser'               , {
+                    'type'  : slsc.Parser   ,
+                },),
+            ('interface'            , {
+                    'type'      : slsi.Interface    ,
+                    'default'   : slsi.Requests()   ,
+                },),
+            ('data_exporter'        , {
+                    'default'   : None          ,
+                    'type'      : slsx.Exporter ,
+                },),
+            ('requests_adapter'     , {
+                    'default'   : 'REQUEST'         ,
+                    'type'      : slse.Extractor    ,
+                },),
+            ('revision_date'        , {
+                    'default'   : ''    ,
+                    'type'      : str   ,
+                },),
+            ('is_single_request'    , {
+                    'default'   : False ,
+                    'type'      : bool  ,
+                },),
         ))
 
     def _on_stop        (
@@ -89,9 +98,12 @@ class Scraper   (
             r_list                          ,
             self.data_exporter.export       )
         
-        for request in r_list :
-            if      request != None :
-                self.tasks_queue.put(
-                    sltp.FactoryTask(
-                        target  = self.execute_request  ,
-                        args    = [request]             ))
+        if      self.is_single_request  :
+            self.logger.info({'Requests', r_list})
+        else                            :
+            for request in r_list :
+                if      request != None :
+                    self.tasks_queue.put(
+                        sltp.FactoryTask(
+                            target  = self.execute_request  ,
+                            args    = [request]             ))
