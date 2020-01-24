@@ -44,6 +44,10 @@ class Scraper   (
                     'default'   : False ,
                     'type'      : bool  ,
                 },),
+            ('notes'                , {
+                    'default'   : ''    ,
+                    'type'      : str   ,
+                },),
         ))
 
     def _on_stop        (
