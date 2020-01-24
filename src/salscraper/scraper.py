@@ -103,7 +103,7 @@ class Scraper   (
             self.data_exporter.export       )
         
         if      self.is_single_request  :
-            self.logger.info({'Requests', r_list})
+            self.logger.info({'Requests': r_list})
         else                            :
             for request in r_list :
                 if      request != None :
