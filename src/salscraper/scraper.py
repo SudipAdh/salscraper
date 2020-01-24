@@ -32,6 +32,9 @@ class Scraper   (
             ('requests_adapter' , {
                 'default'   : 'REQUEST'         ,
                 'type'      : slse.Extractor    },),
+            ('revision_date'    , {
+                'default'   : ''    ,
+                'type'      : str   },),
         ))
 
     def _on_stop        (
