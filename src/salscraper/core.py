@@ -112,7 +112,7 @@ class Field         (
         ('is_save'          , {
             'type'      : bool  ,
             'default'   : True  }),
-        ('data_adapter' , {
+        ('data_adapter'     , {
             'type'      : slse.Extractor    ,
             'default'   : None              }),))
     FIELD_TYPE_OBJECT_MAP   = {
@@ -201,6 +201,9 @@ class Field         (
 class Bucket        (
     ContainerBase   ):
     EasyObj_PARAMS          = OrderedDict((
+        ('skip_on'      , {
+            'type'      : slse.Extractor    ,
+            'default'   : None              }),
         ('fields'       , {
             'type'      : [ContainerBase]   ,
             'default'   : None              }),
@@ -252,6 +255,8 @@ class Bucket        (
         r_executer  = None  ,
         parser      = None  ,
         r_list      = None  ):
+        if      self.skip_on and self.skip_on.extract(r, c, None)   :
+            return None
         contexts    = self._extract(r, c) if self.extractor != None else [c]
         if      contexts == None                :
             contexts    = [c]
