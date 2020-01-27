@@ -256,7 +256,7 @@ class Bucket        (
         parser      = None  ,
         r_list      = None  ):
         if      self.skip_on and self.skip_on.extract(r, c, None)   :
-            return None
+            return []
         contexts    = self._extract(r, c) if self.extractor != None else [c]
         if      contexts == None                :
             contexts    = [c]
