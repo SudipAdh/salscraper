@@ -71,6 +71,7 @@ class EXTRACTORS            (
             ' '     : 'NONE'            ,
             '1'     : 'FIRST'           ,
             'b'     : 'TO_BOOL'         ,
+            'pr'    : 'PRINT'           ,
 
             '@'     : 'REQUEST'         ,
             'n'     : 'NEXT_PAGE'       ,
