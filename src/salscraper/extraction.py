@@ -499,7 +499,7 @@ class EXTRACTORS            (
             '''
             first   = None
             for e in x :
-                if      e not in [None, ''] :
+                if      e not in [None, '', False]  :
                     first   = e
                     break
             return first
