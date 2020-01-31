@@ -46,7 +46,7 @@ class Scraper   (
                 },),
             ('notes'                , {
                     'default'   : ''    ,
-                    'type'      : str   ,
+                    'type'      : [str] ,
                 },),
         ))
 
