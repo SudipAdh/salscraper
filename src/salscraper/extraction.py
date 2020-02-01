@@ -516,7 +516,7 @@ class EXTRACTORS            (
                 Returns:
                     Bool    : True if `x` exists.
             '''
-            return True if x != None else False
+            return True if x not in [None, False, [], ''] else False
     #----------------------------------------
     # Buckets extractors
     #----------------------------------------
