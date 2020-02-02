@@ -145,6 +145,24 @@ class   TestEXTRACTORS          (
             None    ,
             None    ,
             ' a '   ) == ' a '
+        assert slse.EXTRACTORS.FIRST            (
+            None    ,
+            None    ,
+            [None, [],'', 'K']  ) == 'K'
+        assert slse.EXTRACTORS.TO_BOOL          (
+            None    ,
+            None    ,
+            'K'     ) == True
+        assert slse.EXTRACTORS.KEYS             (
+            None    ,
+            None    ,
+            {'a':1,'b':2}   ) == ['a', 'b']
+        assert slse.EXTRACTORS.VALUES           (
+            None    ,
+            None    ,
+            {'a':1,'b':2}   ) == [1, 2]
+        
+    
     def test_buckets                (
         self    ):
         b_a = {

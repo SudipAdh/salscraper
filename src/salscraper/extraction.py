@@ -72,6 +72,8 @@ class EXTRACTORS            (
             '1'     : 'FIRST'           ,
             'b'     : 'TO_BOOL'         ,
             'pr'    : 'PRINT'           ,
+            'k'     : 'KEYS'            ,
+            'v'     : 'VALUES'          ,
 
             '@'     : 'REQUEST'         ,
             'n'     : 'NEXT_PAGE'       ,
@@ -517,6 +519,34 @@ class EXTRACTORS            (
                     Bool    : True if `x` exists.
             '''
             return True if x not in [None, False, [], ''] else False
+        @classmethod
+        def KEYS            (
+            cls ,
+            r   , 
+            c   , 
+            x   ):
+            '''Keys of a `dict` `x`.
+                
+                Args:
+                    x       (dict   ): A `dict`.
+                Returns:
+                    list    : The keys.
+            '''
+            return list(x.keys())
+        @classmethod
+        def VALUES          (
+            cls ,
+            r   , 
+            c   , 
+            x   ):
+            '''Values of a `dict` `x`.
+                
+                Args:
+                    x       (dict   ): A `dict`.
+                Returns:
+                    list    : The values.
+            '''
+            return list(x.values())
     #----------------------------------------
     # Buckets extractors
     #----------------------------------------
