@@ -887,6 +887,8 @@ class ExtractorCollection   (
 
         for function in self.functions:
             x = function.extract(r, c, x, **kwargs)
+            if      x == None   :
+                break
         return x
 class Extractor             (
     EasyObj ):
