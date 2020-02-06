@@ -74,6 +74,7 @@ class EXTRACTORS            (
             'pr'    : 'PRINT'           ,
             'k'     : 'KEYS'            ,
             'v'     : 'VALUES'          ,
+            't'     : 'VALUES'          ,
 
             '@'     : 'REQUEST'         ,
             'n'     : 'NEXT_PAGE'       ,
@@ -167,7 +168,7 @@ class EXTRACTORS            (
             r       , 
             c       , 
             x       ):
-            '''Gets the HTML source of an HTML element as string.
+            '''Gets the HTML tree from an HTML string.
                 
                 Args:
                     x   (str    ): The html source.
@@ -547,6 +548,22 @@ class EXTRACTORS            (
                     list    : The values.
             '''
             return list(x.values())
+        @classmethod
+        def FLATTEN         (
+            cls ,
+            r   , 
+            c   , 
+            x   ):
+            '''Flattens a `list` `x`.
+                
+                Args:
+                    x       (list   ): A `list`.
+                Returns:
+                    list    : Flattened `list`.
+            '''
+            return [z for y in x for z in y]
+    
+    
     #----------------------------------------
     # Buckets extractors
     #----------------------------------------
