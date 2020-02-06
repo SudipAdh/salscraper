@@ -74,7 +74,7 @@ class EXTRACTORS            (
             'pr'    : 'PRINT'           ,
             'k'     : 'KEYS'            ,
             'v'     : 'VALUES'          ,
-            't'     : 'VALUES'          ,
+            't'     : 'FLATTEN'         ,
 
             '@'     : 'REQUEST'         ,
             'n'     : 'NEXT_PAGE'       ,
